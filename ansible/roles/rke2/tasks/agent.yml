@@ -1,0 +1,23 @@
+---
+- name: Créer /etc/rancher/rke2
+  ansible.builtin.file:
+    path: /etc/rancher/rke2
+    state: directory
+    mode: "0700"
+
+- name: Déployer la configuration agent
+  ansible.builtin.template:
+    src: config-agent.yaml.j2
+    dest: /etc/rancher/rke2/config.yaml
+    mode: "0600"
+  vars:
+    rke2_server_url: "https://{{ hostvars[groups['control_plane'][0]].ansible_host }}:9345"
+    rke2_join_token: "{{ hostvars[groups['control_plane'][0]].rke2_node_token }}"
+  notify: Restart rke2-agent
+
+- name: Activer et démarrer rke2-agent
+  ansible.builtin.systemd:
+    name: rke2-agent
+    state: started
+    enabled: true
+    daemon_reload: true

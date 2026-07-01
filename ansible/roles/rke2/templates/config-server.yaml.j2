@@ -1,0 +1,18 @@
+cni: {{ rke2_cni }}
+node-ip: "{{ ansible_default_ipv4.address }}"
+
+tls-san:
+{% for san in rke2_tls_san %}
+  - "{{ san }}"
+{% endfor %}
+
+disable:
+{% for component in rke2_disable_components %}
+  - {{ component }}
+{% endfor %}
+
+# Cloud Controller Manager fourni séparément par le rôle scaleway-ccm (Phase 2)
+disable-cloud-controller: true
+cloud-provider-name: external
+
+write-kubeconfig-mode: "0600"

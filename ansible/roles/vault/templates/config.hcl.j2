@@ -1,0 +1,16 @@
+storage "raft" {
+  path    = "{{ vault_data_dir }}"
+  node_id = "{{ inventory_hostname }}"
+}
+
+listener "tcp" {
+  address       = "{{ vault_listener_address }}"
+  tls_cert_file = "{{ vault_tls_dir }}/vault-cert.pem"
+  tls_key_file  = "{{ vault_tls_dir }}/vault-key.pem"
+}
+
+api_addr     = "https://{{ ansible_default_ipv4.address }}:8200"
+cluster_addr = "https://{{ ansible_default_ipv4.address }}:8201"
+
+disable_mlock = true
+ui            = true

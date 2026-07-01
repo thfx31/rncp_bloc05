@@ -1,0 +1,10 @@
+---
+galaxy_info:
+  author: Thomas Fauroux
+  description: Installation et configuration de Vault (raft single-node, VM dédiée hors cluster)
+  license: MIT
+  min_ansible_version: "2.15"
+  platforms:
+    - name: EL
+      versions: ["9"]
+dependencies: []

@@ -1,0 +1,10 @@
+---
+galaxy_info:
+  author: Thomas Fauroux
+  description: Prérequis système Kubernetes (modules kernel, sysctl, désactivation swap)
+  license: MIT
+  min_ansible_version: "2.15"
+  platforms:
+    - name: EL
+      versions: ["9"]
+dependencies: []

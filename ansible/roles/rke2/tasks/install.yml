@@ -1,0 +1,34 @@
+---
+# ── Dépôts RPM RKE2 (rpm.rancher.io) ─────────────────────
+- name: Ajouter le dépôt RPM commun RKE2
+  ansible.builtin.yum_repository:
+    name: rancher-rke2-common
+    description: Rancher RKE2 Common
+    baseurl: "https://rpm.rancher.io/rke2/{{ rke2_channel }}/common/centos/{{ rke2_os_major }}/noarch"
+    gpgcheck: true
+    repo_gpgcheck: true
+    gpgkey: https://rpm.rancher.io/public.key
+    enabled: true
+
+- name: Ajouter le dépôt RPM versionné RKE2
+  ansible.builtin.yum_repository:
+    name: "rancher-rke2-1-{{ rke2_version_minor }}"
+    description: "Rancher RKE2 1.{{ rke2_version_minor }}"
+    baseurl: "https://rpm.rancher.io/rke2/{{ rke2_channel }}/1.{{ rke2_version_minor }}/centos/{{ rke2_os_major }}/x86_64"
+    gpgcheck: true
+    repo_gpgcheck: true
+    gpgkey: https://rpm.rancher.io/public.key
+    enabled: true
+
+# ── Installation ─────────────────────────────────────────
+- name: Installer rke2-server
+  ansible.builtin.dnf:
+    name: rke2-server
+    state: present
+  when: inventory_hostname in groups['control_plane']
+
+- name: Installer rke2-agent
+  ansible.builtin.dnf:
+    name: rke2-agent
+    state: present
+  when: inventory_hostname in groups['workers']

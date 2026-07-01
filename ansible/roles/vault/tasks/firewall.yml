@@ -1,0 +1,21 @@
+---
+- name: Installer firewalld
+  ansible.builtin.dnf:
+    name: firewalld
+    state: present
+
+- name: Activer et démarrer firewalld
+  ansible.builtin.systemd:
+    name: firewalld
+    state: started
+    enabled: true
+
+- name: Ouvrir les ports Vault (API + raft cluster)
+  ansible.posix.firewalld:
+    port: "{{ item }}"
+    permanent: true
+    immediate: true
+    state: enabled
+  loop:
+    - 8200/tcp  # API — atteint depuis le réseau privé par Jenkins (auth K8s)
+    - 8201/tcp  # Raft cluster (inutile en single-node, ouvert par cohérence)

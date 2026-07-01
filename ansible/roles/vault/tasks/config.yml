@@ -1,0 +1,22 @@
+---
+- name: Déployer la configuration Vault
+  ansible.builtin.template:
+    src: config.hcl.j2
+    dest: "{{ vault_config_dir }}/vault.hcl"
+    owner: vault
+    group: vault
+    mode: "0640"
+  notify: Restart vault
+
+- name: Activer et démarrer Vault
+  ansible.builtin.systemd:
+    name: vault
+    state: started
+    enabled: true
+    daemon_reload: true
+
+- name: Attendre que l'API Vault réponde (scellé ou non)
+  ansible.builtin.wait_for:
+    port: 8200
+    host: 127.0.0.1
+    timeout: 60

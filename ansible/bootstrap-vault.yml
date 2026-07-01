@@ -1,0 +1,29 @@
+---
+- name: Préparer l'OS sur la VM Vault
+  hosts: vault
+  become: true
+  roles:
+    - common
+
+- name: Installer et configurer Vault
+  hosts: vault
+  become: true
+  roles:
+    - vault
+
+- name: Vérifier l'état de Vault
+  hosts: vault
+  become: false
+  tasks:
+    - name: Interroger le statut Vault (sealed/initialized attendus tant que
+        l'init/unseal manuel n'a pas été fait — cf. docs/vault.md)
+      ansible.builtin.command: vault status -tls-skip-verify
+      environment:
+        VAULT_ADDR: "https://127.0.0.1:8200"
+      register: vault_status
+      changed_when: false
+      failed_when: false
+
+    - name: Afficher le statut
+      ansible.builtin.debug:
+        msg: "{{ vault_status.stdout_lines }}"

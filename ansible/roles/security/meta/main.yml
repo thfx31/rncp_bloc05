@@ -1,0 +1,10 @@
+---
+galaxy_info:
+  author: Thomas Fauroux
+  description: Durcissement OS (firewalld, fail2ban)
+  license: MIT
+  min_ansible_version: "2.15"
+  platforms:
+    - name: EL
+      versions: ["9"]
+dependencies: []

@@ -1,0 +1,7 @@
+---
+domain: "k8s.yplank.fr"
+
+rke2_tls_san:
+  - "{{ hostvars[groups['control_plane'][0]].ansible_host }}"
+  - "{{ domain }}"
+  - "*.{{ domain }}"

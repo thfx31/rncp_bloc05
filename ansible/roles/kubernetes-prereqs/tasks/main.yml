@@ -1,0 +1,41 @@
+---
+# ── Désactivation du swap ────────────────────────────────
+- name: Désactiver le swap immédiatement
+  ansible.builtin.command: swapoff -a
+  changed_when: false
+
+- name: Supprimer le swap du fstab
+  ansible.builtin.lineinfile:
+    path: /etc/fstab
+    regexp: '\sswap\s'
+    state: absent
+
+# ── Modules noyau ────────────────────────────────────────
+- name: Charger les modules noyau requis
+  community.general.modprobe:
+    name: "{{ item }}"
+    state: present
+  loop:
+    - overlay
+    - br_netfilter
+
+- name: Persistance des modules au reboot
+  ansible.builtin.copy:
+    dest: /etc/modules-load.d/kubernetes.conf
+    content: |
+      overlay
+      br_netfilter
+    mode: '0644'
+
+# ── Paramètres sysctl ────────────────────────────────────
+- name: Configurer sysctl pour Kubernetes
+  ansible.posix.sysctl:
+    name: "{{ item.key }}"
+    value: "{{ item.value }}"
+    sysctl_file: /etc/sysctl.d/99-kubernetes.conf
+    reload: true
+    state: present
+  loop:
+    - { key: net.bridge.bridge-nf-call-iptables,  value: "1" }
+    - { key: net.bridge.bridge-nf-call-ip6tables, value: "1" }
+    - { key: net.ipv4.ip_forward,                 value: "1" }

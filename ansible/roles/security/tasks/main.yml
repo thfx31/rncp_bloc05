@@ -1,0 +1,80 @@
+---
+# ── SELinux ──────────────────────────────────────────────
+- name: Installer les outils SELinux
+  ansible.builtin.dnf:
+    name:
+      - policycoreutils
+      - policycoreutils-python-utils
+      - container-selinux
+    state: present
+
+- name: Activer SELinux en mode enforcing
+  ansible.posix.selinux:
+    policy: targeted
+    state: enforcing
+  register: selinux_result
+
+# ── Firewalld ────────────────────────────────────────────
+- name: Installer firewalld
+  ansible.builtin.dnf:
+    name: firewalld
+    state: present
+
+- name: Activer et démarrer firewalld
+  ansible.builtin.systemd:
+    name: firewalld
+    state: started
+    enabled: true
+
+# -- Ports communs à tous les nodes --
+- name: Ouvrir les ports communs (Kubelet, NodePort range, iSCSI Cinder)
+  ansible.posix.firewalld:
+    port: "{{ item }}"
+    permanent: true
+    immediate: true
+    state: enabled
+  loop:
+    - 10250/tcp        # Kubelet API
+    - 30000-32767/tcp  # NodePort range
+    - 3260/tcp         # iSCSI pour Cinder CSI
+
+# -- Ports spécifiques au control plane --
+- name: Ouvrir les ports control plane
+  ansible.posix.firewalld:
+    port: "{{ item }}"
+    permanent: true
+    immediate: true
+    state: enabled
+  loop:
+    - 6443/tcp       # API Server
+    - 9345/tcp       # RKE2 supervisor API (join des agents)
+    - 2379-2380/tcp  # etcd
+    - 10259/tcp      # kube-scheduler
+    - 10257/tcp      # kube-controller-manager
+  when: inventory_hostname in groups['control_plane']
+
+# -- Masquerade pour le routage des pods --
+- name: Activer le masquerade
+  ansible.posix.firewalld:
+    masquerade: true
+    permanent: true
+    immediate: true
+    state: enabled
+
+# -- Ports Cilium CNI --
+- name: Ouvrir les ports Cilium
+  ansible.posix.firewalld:
+    port: "{{ item }}"
+    permanent: true
+    immediate: true
+    state: enabled
+  loop:
+    - 4240/tcp  # Cilium health
+    - 4244/tcp  # Hubble
+    - 8472/udp  # VXLAN overlay
+
+- name: Reboot si SELinux a changé
+  ansible.builtin.reboot:
+    msg: "Reboot pour appliquer SELinux enforcing"
+    reboot_timeout: 300
+  when: selinux_result.reboot_required | default(false)

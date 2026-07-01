@@ -1,0 +1,19 @@
+---
+- name: Ajouter le dépôt RPM HashiCorp
+  ansible.builtin.get_url:
+    url: https://rpm.releases.hashicorp.com/RHEL/hashicorp.repo
+    dest: /etc/yum.repos.d/hashicorp.repo
+    mode: "0644"
+
+- name: Installer Vault
+  ansible.builtin.dnf:
+    name: vault
+    state: present
+
+- name: Créer le répertoire de données raft
+  ansible.builtin.file:
+    path: "{{ vault_data_dir }}"
+    state: directory
+    owner: vault
+    group: vault
+    mode: "0700"

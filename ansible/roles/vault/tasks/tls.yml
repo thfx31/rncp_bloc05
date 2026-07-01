@@ -1,0 +1,45 @@
+---
+- name: Installer la bibliothèque Python cryptography (requise par community.crypto)
+  ansible.builtin.dnf:
+    name: python3-cryptography
+    state: present
+
+- name: Créer le répertoire TLS
+  ansible.builtin.file:
+    path: "{{ vault_tls_dir }}"
+    state: directory
+    owner: vault
+    group: vault
+    mode: "0700"
+
+- name: Générer la clé privée
+  community.crypto.openssl_privatekey:
+    path: "{{ vault_tls_dir }}/vault-key.pem"
+    type: RSA
+    size: 4096
+    owner: vault
+    group: vault
+    mode: "0600"
+
+- name: Générer la CSR auto-signée
+  community.crypto.openssl_csr:
+    path: "{{ vault_tls_dir }}/vault.csr"
+    privatekey_path: "{{ vault_tls_dir }}/vault-key.pem"
+    common_name: "{{ vault_tls_cn }}"
+    subject_alt_name:
+      - "DNS:{{ vault_tls_cn }}"
+      - "DNS:localhost"
+      - "IP:127.0.0.1"
+      - "IP:{{ ansible_default_ipv4.address }}"
+
+- name: Générer le certificat auto-signé
+  community.crypto.x509_certificate:
+    path: "{{ vault_tls_dir }}/vault-cert.pem"
+    csr_path: "{{ vault_tls_dir }}/vault.csr"
+    privatekey_path: "{{ vault_tls_dir }}/vault-key.pem"
+    provider: selfsigned
+    selfsigned_not_after: "+{{ vault_tls_days_valid }}d"
+    owner: vault
+    group: vault
+    mode: "0644"
+  notify: Restart vault

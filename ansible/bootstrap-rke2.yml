@@ -1,0 +1,33 @@
+---
+- name: Préparer l'OS sur tous les nodes
+  hosts: k8s_cluster
+  become: true
+  roles:
+    - common
+    - security
+    - kubernetes-prereqs
+
+- name: Bootstrap RKE2 — control-plane
+  hosts: control_plane
+  become: true
+  roles:
+    - rke2
+
+- name: Bootstrap RKE2 — agents
+  hosts: workers
+  become: true
+  roles:
+    - rke2
+
+- name: Vérifier l'état du cluster
+  hosts: control_plane
+  become: false
+  tasks:
+    - name: Lister les nodes
+      ansible.builtin.command: kubectl get nodes
+      register: kubectl_nodes
+      changed_when: false
+
+    - name: Afficher les nodes
+      ansible.builtin.debug:
+        msg: "{{ kubectl_nodes.stdout_lines }}"

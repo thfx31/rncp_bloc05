@@ -1,0 +1,15 @@
+---
+rke2_channel: stable
+rke2_version_minor: "31"   # correspond à 1.31, cohérent avec l'ancien kubernetes_version du rôle kubeadm
+rke2_os_major: "9"         # AlmaLinux 9
+
+rke2_cni: cilium
+
+# Composants packagés RKE2 désactivés car gérés par des rôles Ansible dédiés en Phase 2
+# (ingress-nginx) — évite un déploiement en double.
+rke2_disable_components:
+  - rke2-ingress-nginx
+
+# SAN supplémentaires pour le certificat TLS de l'API server (IP publique du
+# control-plane + domaine wildcard) — surchargé par group_vars/all.yml
+rke2_tls_san: []

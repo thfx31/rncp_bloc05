@@ -1,0 +1,12 @@
+---
+- name: Installer Vault
+  ansible.builtin.import_tasks: install.yml
+
+- name: Générer le certificat TLS auto-signé
+  ansible.builtin.import_tasks: tls.yml
+
+- name: Ouvrir les ports firewalld
+  ansible.builtin.import_tasks: firewall.yml
+
+- name: Déployer la configuration et démarrer Vault
+  ansible.builtin.import_tasks: config.yml

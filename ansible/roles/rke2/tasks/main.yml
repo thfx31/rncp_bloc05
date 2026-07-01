@@ -1,0 +1,11 @@
+---
+- name: Ajouter les dépôts RPM et installer le paquet RKE2
+  ansible.builtin.import_tasks: install.yml
+
+- name: Bootstrap control-plane RKE2
+  ansible.builtin.import_tasks: server.yml
+  when: inventory_hostname in groups['control_plane']
+
+- name: Bootstrap agent RKE2
+  ansible.builtin.import_tasks: agent.yml
+  when: inventory_hostname in groups['workers']

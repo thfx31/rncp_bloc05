@@ -1,0 +1,65 @@
+---
+- name: Créer /etc/rancher/rke2
+  ansible.builtin.file:
+    path: /etc/rancher/rke2
+    state: directory
+    mode: "0700"
+
+- name: Déployer la configuration control-plane
+  ansible.builtin.template:
+    src: config-server.yaml.j2
+    dest: /etc/rancher/rke2/config.yaml
+    mode: "0600"
+  notify: Restart rke2-server
+
+- name: Activer et démarrer rke2-server
+  ansible.builtin.systemd:
+    name: rke2-server
+    state: started
+    enabled: true
+    daemon_reload: true
+
+- name: Attendre que l'API RKE2 soit disponible
+  ansible.builtin.wait_for:
+    port: 6443
+    host: 127.0.0.1
+    timeout: 300
+
+- name: Lire le node-token généré par RKE2
+  ansible.builtin.slurp:
+    src: /var/lib/rancher/rke2/server/node-token
+  register: rke2_node_token_raw
+
+- name: Exposer le node-token comme fact (lu par les agents via hostvars)
+  ansible.builtin.set_fact:
+    rke2_node_token: "{{ rke2_node_token_raw.content | b64decode | trim }}"
+
+- name: Créer un lien symbolique kubectl dans le PATH
+  ansible.builtin.file:
+    src: /var/lib/rancher/rke2/bin/kubectl
+    dest: /usr/local/bin/kubectl
+    state: link
+    force: true
+
+- name: Créer le répertoire .kube pour l'utilisateur ansible
+  ansible.builtin.file:
+    path: "/home/{{ ansible_user }}/.kube"
+    state: directory
+    owner: "{{ ansible_user }}"
+    group: "{{ ansible_user }}"
+    mode: "0755"
+
+- name: Copier le kubeconfig
+  ansible.builtin.copy:
+    src: /etc/rancher/rke2/rke2.yaml
+    dest: "/home/{{ ansible_user }}/.kube/config"
+    owner: "{{ ansible_user }}"
+    group: "{{ ansible_user }}"
+    mode: "0600"
+    remote_src: true
+
+- name: Pointer le kubeconfig vers l'IP publique du control-plane
+  ansible.builtin.replace:
+    path: "/home/{{ ansible_user }}/.kube/config"
+    regexp: 'https://127\.0\.0\.1:6443'
+    replace: "https://{{ ansible_host }}:6443"

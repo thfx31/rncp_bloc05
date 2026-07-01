@@ -1,0 +1,32 @@
+---
+- name: Mise à jour de tous les paquets
+  ansible.builtin.dnf:
+    name: "*"
+    state: latest
+    update_cache: true
+
+- name: Installation des paquets de base
+  ansible.builtin.dnf:
+    name:
+      - conntrack-tools
+      - vim
+      - curl
+      - wget
+      - tar
+      - bash-completion
+      - dnf-utils
+      - device-mapper-persistent-data
+      - lvm2
+      - chrony
+      - iproute-tc
+    state: present
+
+- name: Activer et démarrer Chrony (NTP)
+  ansible.builtin.systemd:
+    name: chronyd
+    state: started
+    enabled: true
+
+- name: Configurer le hostname
+  ansible.builtin.hostname:
+    name: "{{ inventory_hostname }}"

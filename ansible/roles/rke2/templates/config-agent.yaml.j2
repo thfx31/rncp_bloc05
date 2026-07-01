@@ -1,0 +1,6 @@
+server: "{{ rke2_server_url }}"
+token: "{{ rke2_join_token }}"
+node-ip: "{{ ansible_default_ipv4.address }}"
+
+# Cloud Controller Manager fourni séparément par le rôle scaleway-ccm (Phase 2)
+cloud-provider-name: external
