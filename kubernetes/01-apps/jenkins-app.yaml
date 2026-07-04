@@ -1,0 +1,75 @@
+# Vérifier avant rebuild : https://github.com/jenkinsci/helm-charts/releases
+#
+# Le Secret "jenkins-admin-secret" (namespace jenkins, clés jenkins-admin-user
+# et jenkins-admin-password) n'est PAS dans ce repo — créé via
+# `make k8s-apps-secrets`, jamais committé.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: jenkins
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://charts.jenkins.io
+    chart: jenkins
+    targetRevision: "5.9.32"
+    helm:
+      values: |
+        controller:
+          admin:
+            existingSecret: jenkins-admin-secret
+          nodeSelector:
+            kubernetes.io/hostname: rncp-bc05-worker-02
+          ingress:
+            enabled: true
+            ingressClassName: nginx
+            hostName: jenkins.k8s.yplank.fr
+            tls:
+              - secretName: jenkins-tls
+                hosts:
+                  - jenkins.k8s.yplank.fr
+            annotations:
+              cert-manager.io/cluster-issuer: letsencrypt-prod
+          resources:
+            requests:
+              cpu: 500m
+              memory: 1Gi
+            limits:
+              memory: 2Gi
+          installPlugins:
+            - kubernetes:latest
+            - workflow-aggregator:latest
+            - git:latest
+            - configuration-as-code:latest
+          additionalPlugins:
+            - gitlab-plugin:latest
+            - sonar:latest
+            - docker-workflow:latest
+            - blueocean:latest
+            - pipeline-stage-view:latest
+        persistence:
+          enabled: true
+          storageClass: local-path
+          size: 10Gi
+        agent:
+          enabled: true
+          # Agents de build sur worker-01, pour ne pas concurrencer Harbor/le
+          # controller Jenkins (worker-02) sur le même node
+          nodeSelector:
+            kubernetes.io/hostname: rncp-bc05-worker-01
+          resources:
+            requests:
+              cpu: 200m
+              memory: 256Mi
+            limits:
+              memory: 1Gi
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: jenkins
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true

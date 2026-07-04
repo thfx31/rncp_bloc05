@@ -1,0 +1,60 @@
+# Vérifier avant rebuild : https://github.com/SonarSource/helm-chart-sonarqube/releases
+#
+# Le Secret "sonarqube-secrets" (namespace sonarqube, clé monitoringPasscode)
+# n'est PAS dans ce repo — créé via `make k8s-apps-secrets`, jamais committé.
+# Mot de passe admin par défaut (admin/admin) — SonarQube force le changement
+# au premier login, pas besoin de le pré-configurer.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: sonarqube
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://sonarsource.github.io/helm-chart-sonarqube
+    chart: sonarqube
+    targetRevision: "2026.3.1"
+    helm:
+      values: |
+        monitoringPasscodeSecretName: sonarqube-secrets
+        monitoringPasscodeSecretKey: monitoringPasscode
+        community:
+          enabled: true
+        ingress:
+          enabled: true
+          ingressClassName: nginx
+          hosts:
+            - name: sonarqube.k8s.yplank.fr
+              path: /
+          tls:
+            - secretName: sonarqube-tls
+              hosts:
+                - sonarqube.k8s.yplank.fr
+          annotations:
+            cert-manager.io/cluster-issuer: letsencrypt-prod
+        resources:
+          requests:
+            cpu: 400m
+            memory: 1.5Gi
+          limits:
+            memory: 3Gi
+        nodeSelector:
+          kubernetes.io/hostname: rncp-bc05-worker-02
+        persistence:
+          enabled: true
+          storageClass: local-path
+          size: 5Gi
+        postgresql:
+          persistence:
+            storageClass: local-path
+            size: 5Gi
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: sonarqube
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true

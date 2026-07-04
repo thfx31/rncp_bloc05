@@ -1,0 +1,127 @@
+# Vérifier avant rebuild : https://gitlab.com/gitlab-org/charts/gitlab/-/releases
+#
+# Le Secret "gitlab-initial-root-password" (namespace gitlab, clé "password")
+# n'est PAS dans ce repo — créé via `make k8s-apps-secrets`, jamais committé.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: gitlab
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://charts.gitlab.io/
+    chart: gitlab
+    targetRevision: "10.1.1"
+    helm:
+      values: |
+        global:
+          hosts:
+            domain: k8s.yplank.fr
+            gitlab:
+              name: gitlab.k8s.yplank.fr
+            minio:
+              name: minio.k8s.yplank.fr
+          ingress:
+            class: nginx
+            annotations:
+              cert-manager.io/cluster-issuer: letsencrypt-prod
+            configureCertmanager: false
+            tls:
+              enabled: true
+          edition: ce
+          kas:
+            enabled: false
+          pages:
+            enabled: false
+          appConfig:
+            enableUsagePing: false
+          initialRootPassword:
+            secret: gitlab-initial-root-password
+            key: password
+        # Désactiver les composants inutiles pour le POC
+        upgradeCheck:
+          enabled: false
+        certmanager:
+          install: false
+        nginx-ingress:
+          enabled: false
+        prometheus:
+          install: false
+        gitlab-runner:
+          install: false
+        registry:
+          enabled: false
+        # Réduire les ressources, répartir sur les 2 workers
+        gitlab:
+          webservice:
+            minReplicas: 1
+            maxReplicas: 1
+            nodeSelector:
+              kubernetes.io/hostname: rncp-bc05-worker-01
+            ingress:
+              tls:
+                secretName: gitlab-webservice-tls
+            resources:
+              requests:
+                cpu: 300m
+                memory: 1.5Gi
+              limits:
+                memory: 3Gi
+          sidekiq:
+            minReplicas: 1
+            maxReplicas: 1
+            nodeSelector:
+              kubernetes.io/hostname: rncp-bc05-worker-01
+            resources:
+              requests:
+                cpu: 200m
+                memory: 1Gi
+              limits:
+                memory: 2Gi
+          gitaly:
+            resources:
+              requests:
+                cpu: 200m
+                memory: 512Mi
+              limits:
+                memory: 1Gi
+            persistence:
+              storageClass: local-path
+              size: 10Gi
+          toolbox:
+            resources:
+              requests:
+                cpu: 100m
+                memory: 256Mi
+              limits:
+                memory: 512Mi
+          gitlab-shell:
+            minReplicas: 1
+            maxReplicas: 1
+        postgresql:
+          persistence:
+            storageClass: local-path
+            size: 5Gi
+        redis:
+          master:
+            persistence:
+              storageClass: local-path
+              size: 2Gi
+        minio:
+          ingress:
+            tls:
+              secretName: gitlab-minio-tls
+          persistence:
+            storageClass: local-path
+            size: 5Gi
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: gitlab
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true

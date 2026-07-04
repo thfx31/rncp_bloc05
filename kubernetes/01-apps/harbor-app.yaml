@@ -1,0 +1,75 @@
+# Vérifier avant rebuild : https://github.com/goharbor/harbor-helm/releases
+#
+# Le Secret "harbor-admin-password" (namespace harbor, clés HARBOR_ADMIN_PASSWORD
+# et secretKey) n'est PAS dans ce repo — créé via `make k8s-apps-secrets` à
+# partir de mots de passe générés aléatoirement, jamais committés.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: harbor
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://helm.goharbor.io
+    chart: harbor
+    targetRevision: "1.19.1"
+    helm:
+      values: |
+        expose:
+          type: ingress
+          tls:
+            enabled: true
+            certSource: secret
+            secret:
+              secretName: harbor-tls
+          ingress:
+            hosts:
+              core: harbor.k8s.yplank.fr
+            className: nginx
+            annotations:
+              cert-manager.io/cluster-issuer: letsencrypt-prod
+        externalURL: https://harbor.k8s.yplank.fr
+        existingSecretAdminPassword: harbor-admin-password
+        existingSecretAdminPasswordKey: HARBOR_ADMIN_PASSWORD
+        existingSecretSecretKey: harbor-admin-password
+        # Stratégie Recreate pour les composants avec PVC RWO (local-path)
+        registry:
+          updateStrategy:
+            type: Recreate
+          nodeSelector:
+            kubernetes.io/hostname: rncp-bc05-worker-01
+        jobservice:
+          updateStrategy:
+            type: Recreate
+        core:
+          nodeSelector:
+            kubernetes.io/hostname: rncp-bc05-worker-01
+        persistence:
+          enabled: true
+          persistentVolumeClaim:
+            registry:
+              storageClass: local-path
+              size: 10Gi
+            database:
+              storageClass: local-path
+              size: 2Gi
+            redis:
+              storageClass: local-path
+              size: 1Gi
+            jobservice:
+              jobLog:
+                storageClass: local-path
+                size: 1Gi
+            trivy:
+              storageClass: local-path
+              size: 2Gi
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: harbor
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
