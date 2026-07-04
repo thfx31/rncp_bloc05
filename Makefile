@@ -67,26 +67,26 @@ tf-vault-output:
 #  ANSIBLE
 # ══════════════════════════════════════════════════════════
 
-.PHONY: inventory inventory-vault ping bootstrap-rke2 bootstrap-vault
+.PHONY: ansible-inventory ansible-inventory-vault ping ansible-k8s ansible-vault
 
 ## Régénérer tf_outputs.json à partir des outputs Terraform du cluster
-inventory:
+ansible-inventory:
 	terraform -chdir=$(TF_CLUSTER_DIR) output -json > $(ANSIBLE_DIR)/tf_outputs.json
 
 ## Régénérer tf_outputs_vault.json à partir des outputs Terraform de vault
-inventory-vault:
+ansible-inventory-vault:
 	terraform -chdir=$(TF_VAULT_DIR) output -json > $(ANSIBLE_DIR)/tf_outputs_vault.json
 
 ## Tester la connectivité SSH vers les nodes du cluster
-ping: inventory
+ping: ansible-inventory
 	cd $(ANSIBLE_DIR) && ansible k8s_cluster -m ping
 
-## Bootstrap complet RKE2 (OS + control-plane + agents)
-bootstrap-rke2: inventory
-	cd $(ANSIBLE_DIR) && ansible-playbook bootstrap-rke2.yml
+## Bootstrap complet K8s/RKE2 (OS + control-plane + agents)
+ansible-k8s: ansible-inventory
+	cd $(ANSIBLE_DIR) && ansible-playbook bootstrap-k8s.yml
 
 ## Bootstrap complet Vault (install + config raft + TLS, sans init/unseal)
-bootstrap-vault: inventory inventory-vault
+ansible-vault: ansible-inventory ansible-inventory-vault
 	cd $(ANSIBLE_DIR) && ansible-playbook bootstrap-vault.yml
 
 # ══════════════════════════════════════════════════════════
@@ -141,11 +141,11 @@ help:
 	@echo "    make tf-vault-output      terraform output (vault)"
 	@echo ""
 	@echo "  ANSIBLE"
-	@echo "    make inventory            Régénérer tf_outputs.json (cluster)"
-	@echo "    make inventory-vault      Régénérer tf_outputs_vault.json"
-	@echo "    make ping                 Tester la connectivité SSH (cluster)"
-	@echo "    make bootstrap-rke2       Bootstrap complet RKE2"
-	@echo "    make bootstrap-vault      Bootstrap complet Vault (sans init/unseal)"
+	@echo "    make ansible-inventory        Régénérer tf_outputs.json (cluster)"
+	@echo "    make ansible-inventory-vault  Régénérer tf_outputs_vault.json"
+	@echo "    make ping                     Tester la connectivité SSH (cluster)"
+	@echo "    make ansible-k8s              Bootstrap complet K8s/RKE2"
+	@echo "    make ansible-vault            Bootstrap complet Vault (sans init/unseal)"
 	@echo ""
 	@echo "  KUBERNETES"
 	@echo "    make kubeconfig           Récupérer le kubeconfig"
