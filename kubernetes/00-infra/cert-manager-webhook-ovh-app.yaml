@@ -1,0 +1,68 @@
+# Webhook DNS-01 OVH (yplank.fr est enregistré chez OVH) + les deux
+# ClusterIssuer Let's Encrypt (prod + staging) créés directement par ce chart.
+# sync-wave "1" : doit passer après cert-manager (CRDs + webhook prêts).
+# Vérifier avant rebuild : https://github.com/aureq/cert-manager-webhook-ovh/releases
+#
+# Le Secret "ovh-credentials" (namespace cert-manager) n'est PAS dans ce repo —
+# créé via `make k8s-secrets` à partir des variables d'environnement (cf.
+# docs/setup-guide.md), jamais committé.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: cert-manager-webhook-ovh
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
+spec:
+  project: default
+  source:
+    repoURL: https://aureq.github.io/cert-manager-webhook-ovh
+    chart: cert-manager-webhook-ovh
+    targetRevision: "0.9.13"
+    helm:
+      values: |
+        certManager:
+          namespace: cert-manager
+          serviceAccountName: cert-manager
+        issuers:
+          - name: letsencrypt-prod
+            create: true
+            kind: ClusterIssuer
+            acmeServerUrl: https://acme-v02.api.letsencrypt.org/directory
+            email: tf.it@tuta.io
+            ovhEndpointName: ovh-eu
+            ovhAuthenticationMethod: application
+            ovhAuthenticationRef:
+              applicationKeyRef:
+                name: ovh-credentials
+                key: applicationKey
+              applicationSecretRef:
+                name: ovh-credentials
+                key: applicationSecret
+              applicationConsumerKeyRef:
+                name: ovh-credentials
+                key: applicationConsumerKey
+          - name: letsencrypt-staging
+            create: true
+            kind: ClusterIssuer
+            acmeServerUrl: https://acme-staging-v02.api.letsencrypt.org/directory
+            email: tf.it@tuta.io
+            ovhEndpointName: ovh-eu
+            ovhAuthenticationMethod: application
+            ovhAuthenticationRef:
+              applicationKeyRef:
+                name: ovh-credentials
+                key: applicationKey
+              applicationSecretRef:
+                name: ovh-credentials
+                key: applicationSecret
+              applicationConsumerKeyRef:
+                name: ovh-credentials
+                key: applicationConsumerKey
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: cert-manager
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
