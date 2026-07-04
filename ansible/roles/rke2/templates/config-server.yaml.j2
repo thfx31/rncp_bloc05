@@ -4,10 +4,11 @@ cni: {{ rke2_cni }}
 # kubelet — le certificat serving kubelet auto-généré n'a de SAN que pour node-ip et
 # 127.0.0.1, donc laisser ansible_default_ipv4 (IP publique, eth0) ici casse tout appel
 # in-cluster vers le kubelet (logs, exec, port-forward, metrics-server) avec une erreur
-# TLS "certificate is valid for ..., not <IP privée>". node-external-ip transporte l'IP
-# publique séparément, sans avoir besoin d'être dans ce certificat.
+# TLS "certificate is valid for ..., not <IP privée>".
+# Pas de node-external-ip : interdit par RKE2 avec cloud-provider-name: external
+# ("can't set node-external-ip while using cloud provider") — c'est au CCM Scaleway
+# de renseigner l'ExternalIP du Node, pas à une config statique.
 node-ip: "{{ ansible_all_ipv4_addresses | select('match', '^172\\.16\\.') | first }}"
-node-external-ip: "{{ ansible_default_ipv4.address }}"
 
 tls-san:
 {% for san in rke2_tls_san %}
