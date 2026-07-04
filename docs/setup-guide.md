@@ -64,6 +64,12 @@ pas dans le code Terraform) :
       `terraform apply` — **doit venir après** `cluster/`, car le `data` source
       cherche le réseau privé par nom
 
+**Important** : `terraform/cluster` et `terraform/vault` sont détruits en fin de
+session (coût Scaleway) et recréés au début de la suivante. À chaque recréation,
+rejouer **toute** la séquence ci-dessous dans l'ordre (cluster → vault → Ansible
+→ init/unseal Vault) — rien n'est persistant entre deux sessions, y compris le
+storage raft de Vault (cf. `docs/vault.md`, section "Rebuild complet à chaque session").
+
 ## 4. Ansible — bootstrap RKE2
 
 - [x] Rôle Ansible RKE2 (remplace `kubeadm`) — bootstrap OS, install
@@ -72,8 +78,8 @@ pas dans le code Terraform) :
 Commandes (voir `Makefile` à la racine) :
 
 ```bash
-make inventory       # régénère ansible/tf_outputs.json depuis terraform/cluster
-make bootstrap-rke2  # ansible-playbook bootstrap-rke2.yml
+make ansible-inventory  # régénère ansible/tf_outputs.json depuis terraform/cluster
+make ansible-k8s        # ansible-playbook bootstrap-k8s.yml
 make kubeconfig       # récupère le kubeconfig du control-plane en local
 make nodes            # kubectl get nodes -o wide
 ```
@@ -92,15 +98,17 @@ make nodes            # kubectl get nodes -o wide
 
 - [x] Rôle Ansible Vault — install binaire (repo RPM HashiCorp), TLS auto-signée,
       config raft single-node, firewalld, service démarré
-- [ ] Init/unseal manuel (voir `docs/vault.md`) — pas automatisé par Ansible,
-      volontairement
+- [ ] Init + unseal manuel (voir `docs/vault.md`) — pas automatisé par Ansible,
+      volontairement. **À refaire à chaque recréation de la VM Vault** (destroy/
+      recreate en fin/début de session) puisque le storage raft ne survit pas à
+      l'instance
 - [ ] Intégration Jenkins via auth K8s — Phase 4
 
 Commandes :
 
 ```bash
-make inventory-vault   # régénère ansible/tf_outputs_vault.json depuis terraform/vault
-make bootstrap-vault   # ansible-playbook bootstrap-vault.yml
+make ansible-inventory-vault   # régénère ansible/tf_outputs_vault.json depuis terraform/vault
+make ansible-vault     # ansible-playbook bootstrap-vault.yml
 ```
 
 **Piège supplémentaire rencontré** : module `community.crypto.openssl_certificate` retiré

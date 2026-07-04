@@ -1,7 +1,0 @@
-{
-  "vault_ip_public": {
-    "sensitive": false,
-    "type": "string",
-    "value": "51.159.188.129"
-  }
-}
