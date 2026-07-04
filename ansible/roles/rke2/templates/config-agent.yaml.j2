@@ -1,6 +1,8 @@
 server: "{{ rke2_server_url }}"
 token: "{{ rke2_join_token }}"
-node-ip: "{{ ansible_default_ipv4.address }}"
+# Voir le commentaire node-ip dans config-server.yaml.j2 — même raison
+node-ip: "{{ ansible_all_ipv4_addresses | select('match', '^172\\.16\\.') | first }}"
+node-external-ip: "{{ ansible_default_ipv4.address }}"
 
 # Cloud Controller Manager fourni séparément par le rôle scaleway-ccm (Phase 2)
 cloud-provider-name: external

@@ -93,7 +93,7 @@ ansible-vault: ansible-inventory ansible-inventory-vault
 #  KUBERNETES — fondation cluster (GitOps, pas d'Ansible)
 # ══════════════════════════════════════════════════════════
 
-.PHONY: kubeconfig nodes k8s-secrets k8s-ccm k8s-bootstrap-argocd
+.PHONY: kubeconfig nodes k8s-secrets k8s-ccm k8s-bootstrap-argocd k8s-apps-secrets
 
 ## Récupérer le kubeconfig depuis le control-plane
 kubeconfig:
@@ -125,6 +125,44 @@ k8s-secrets:
 		--from-literal=applicationSecret="$$OVH_APPLICATION_SECRET" \
 		--from-literal=applicationConsumerKey="$$OVH_CONSUMER_KEY" \
 		--dry-run=client -o yaml | KUBECONFIG=$(KUBECONFIG_FILE) kubectl apply -f -
+
+## Créer les Secrets admin de la stack applicative (Harbor, GitLab, SonarQube,
+## Jenkins) — mots de passe générés aléatoirement, jamais committés, propres
+## à chaque rebuild (les namespaces n'existent pas encore, on les crée ici ;
+## ArgoCD les adoptera ensuite sans conflit)
+k8s-apps-secrets:
+	@for ns in harbor gitlab sonarqube jenkins; do \
+		KUBECONFIG=$(KUBECONFIG_FILE) kubectl create namespace $$ns --dry-run=client -o yaml | KUBECONFIG=$(KUBECONFIG_FILE) kubectl apply -f - ; \
+	done
+	$(eval HARBOR_PW := $(shell openssl rand -base64 24 | tr -d '=+/\n' | cut -c1-24))
+	$(eval HARBOR_SECRETKEY := $(shell openssl rand -base64 24 | tr -d '=+/\n' | cut -c1-16))
+	$(eval GITLAB_PW := $(shell openssl rand -base64 24 | tr -d '=+/\n' | cut -c1-24))
+	$(eval SONARQUBE_PASSCODE := $(shell openssl rand -base64 24 | tr -d '=+/\n' | cut -c1-24))
+	$(eval JENKINS_PW := $(shell openssl rand -base64 24 | tr -d '=+/\n' | cut -c1-24))
+	KUBECONFIG=$(KUBECONFIG_FILE) kubectl create secret generic harbor-admin-password \
+		-n harbor \
+		--from-literal=HARBOR_ADMIN_PASSWORD="$(HARBOR_PW)" \
+		--from-literal=secretKey="$(HARBOR_SECRETKEY)" \
+		--dry-run=client -o yaml | KUBECONFIG=$(KUBECONFIG_FILE) kubectl apply -f -
+	KUBECONFIG=$(KUBECONFIG_FILE) kubectl create secret generic gitlab-initial-root-password \
+		-n gitlab \
+		--from-literal=password="$(GITLAB_PW)" \
+		--dry-run=client -o yaml | KUBECONFIG=$(KUBECONFIG_FILE) kubectl apply -f -
+	KUBECONFIG=$(KUBECONFIG_FILE) kubectl create secret generic sonarqube-secrets \
+		-n sonarqube \
+		--from-literal=monitoringPasscode="$(SONARQUBE_PASSCODE)" \
+		--dry-run=client -o yaml | KUBECONFIG=$(KUBECONFIG_FILE) kubectl apply -f -
+	KUBECONFIG=$(KUBECONFIG_FILE) kubectl create secret generic jenkins-admin-secret \
+		-n jenkins \
+		--from-literal=jenkins-admin-user="admin" \
+		--from-literal=jenkins-admin-password="$(JENKINS_PW)" \
+		--dry-run=client -o yaml | KUBECONFIG=$(KUBECONFIG_FILE) kubectl apply -f -
+	@echo ""
+	@echo "Mots de passe générés — à noter, ils ne sont PAS committés :"
+	@echo "  Harbor (admin)   : $(HARBOR_PW)"
+	@echo "  GitLab (root)    : $(GITLAB_PW)"
+	@echo "  Jenkins (admin)  : $(JENKINS_PW)"
+	@echo "  SonarQube        : admin/admin (changement forcé au 1er login)"
 
 ## Déployer le CCM Scaleway — OBLIGATOIRE avant ArgoCD. RKE2 (cloud-provider-name:
 ## external) tainte tous les nodes node.cloudprovider.kubernetes.io/uninitialized
@@ -196,6 +234,7 @@ help:
 	@echo "    make k8s-secrets          Créer les Secrets (Scaleway CCM, OVH DNS-01)"
 	@echo "    make k8s-ccm              Déployer le CCM Scaleway (lève le taint uninitialized, requis avant ArgoCD)"
 	@echo "    make k8s-bootstrap-argocd Bootstrap ArgoCD + App-of-Apps (prend le relais sur le reste)"
+	@echo "    make k8s-apps-secrets     Secrets admin stack applicative (Harbor, GitLab, SonarQube, Jenkins)"
 	@echo ""
 	@echo "  UTILITAIRES"
 	@echo "    make clean                Nettoyer les fichiers temporaires"

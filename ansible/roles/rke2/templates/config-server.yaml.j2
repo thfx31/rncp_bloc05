@@ -1,5 +1,13 @@
 cni: {{ rke2_cni }}
-node-ip: "{{ ansible_default_ipv4.address }}"
+# node-ip = IP privée (réseau Scaleway VPC, eth1) : c'est celle-là que kube-apiserver
+# et les autres composants in-cluster (ex. metrics-server) utilisent pour joindre le
+# kubelet — le certificat serving kubelet auto-généré n'a de SAN que pour node-ip et
+# 127.0.0.1, donc laisser ansible_default_ipv4 (IP publique, eth0) ici casse tout appel
+# in-cluster vers le kubelet (logs, exec, port-forward, metrics-server) avec une erreur
+# TLS "certificate is valid for ..., not <IP privée>". node-external-ip transporte l'IP
+# publique séparément, sans avoir besoin d'être dans ce certificat.
+node-ip: "{{ ansible_all_ipv4_addresses | select('match', '^172\\.16\\.') | first }}"
+node-external-ip: "{{ ansible_default_ipv4.address }}"
 
 tls-san:
 {% for san in rke2_tls_san %}
