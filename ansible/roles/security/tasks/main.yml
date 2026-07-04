@@ -14,6 +14,29 @@
     state: enforcing
   register: selinux_result
 
+# ── Contexte SELinux pour local-path-provisioner ─────────
+# Sans ça, les pods (busybox helper de local-path-provisioner, puis les
+# conteneurs applicatifs) reçoivent "Permission denied" sur les hostPath
+# sous ce répertoire : le contexte par défaut hérité de /opt est "usr_t",
+# pas labellisé pour un accès conteneur (attendu : "container_file_t").
+# Bug rencontré en Phase 3 (cf. docs/apps-stack.md) — toutes les PVC restaient
+# Pending indéfiniment sans qu'aucune erreur ne remonte côté Kubernetes.
+- name: Créer le répertoire local-path-provisioner
+  ansible.builtin.file:
+    path: /opt/local-path-provisioner
+    state: directory
+    mode: "0777"
+
+- name: Déclarer le contexte SELinux container_file_t pour local-path-provisioner
+  community.general.sefcontext:
+    target: '/opt/local-path-provisioner(/.*)?'
+    setype: container_file_t
+    state: present
+
+- name: Appliquer le contexte SELinux (restorecon)
+  ansible.builtin.command: restorecon -Rv /opt/local-path-provisioner
+  changed_when: true
+
 # ── Firewalld ────────────────────────────────────────────
 - name: Installer firewalld
   ansible.builtin.dnf:

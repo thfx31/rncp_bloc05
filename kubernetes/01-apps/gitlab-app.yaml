@@ -12,7 +12,7 @@ spec:
   source:
     repoURL: https://charts.gitlab.io/
     chart: gitlab
-    targetRevision: "10.1.1"
+    targetRevision: "9.11.7"
     helm:
       values: |
         global:
@@ -29,6 +29,9 @@ spec:
             configureCertmanager: false
             tls:
               enabled: true
+          gatewayApi:
+            enabled: false
+            configureCertmanager: false
           edition: ce
           kas:
             enabled: false
@@ -42,8 +45,7 @@ spec:
         # Désactiver les composants inutiles pour le POC
         upgradeCheck:
           enabled: false
-        certmanager:
-          install: false
+        installCertmanager: false
         nginx-ingress:
           enabled: false
         prometheus:
