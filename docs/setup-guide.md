@@ -2,7 +2,12 @@
 
 Checklist step-by-step, distincte de `docs/runbook-demo.md` (qui sera le script
 des 5 minutes de démo, Phase 6/7). Ici : tout ce qu'il faut faire pour avoir un
-environnement qui tourne.
+environnement qui tourne, avec l'historique des pièges déjà rencontrés.
+
+**Pour rejouer un rebuild complet sans repasser par tout l'historique ci-dessous,
+voir `docs/rebuild-runbook.md`** — la version pas-à-pas condensée (env vars →
+Terraform → Ansible → Vault → GitOps → DNS), pensée pour être redéroulée telle
+quelle à chaque destroy/recreate.
 
 ## 0. Prérequis Scaleway (manuel, une seule fois)
 

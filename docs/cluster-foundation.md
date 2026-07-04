@@ -25,13 +25,19 @@ kubernetes/
     root-app.yaml      # App-of-Apps racine
     00-infra.yaml       # Application "layer-00-infra" → kubernetes/00-infra/
   00-infra/
-    cilium-hubble.yaml              # HelmChartConfig rke2-cilium (active Hubble)
-    scaleway-ccm.yaml                # Manifeste vendoré (upstream, tag v0.36.1)
-    ingress-nginx-app.yaml           # Application ArgoCD → chart Helm ingress-nginx
-    cert-manager-app.yaml            # Application ArgoCD → chart Helm cert-manager
+    local-path-provisioner.yaml       # Manifeste vendoré (upstream, tag v0.0.36) — StorageClass par défaut
+    cilium-hubble.yaml                # HelmChartConfig rke2-cilium (active Hubble)
+    scaleway-ccm.yaml                 # Manifeste vendoré (upstream, tag v0.36.1)
+    ingress-nginx-app.yaml            # Application ArgoCD → chart Helm ingress-nginx
+    cert-manager-app.yaml             # Application ArgoCD → chart Helm cert-manager
     cert-manager-webhook-ovh-app.yaml # Application ArgoCD → chart webhook OVH + ClusterIssuer prod/staging
     argocd-ingress.yaml               # Ingress pour argocd-server lui-même
 ```
+
+**Ajouté après coup** : `local-path-provisioner` — RKE2 ne bundle aucun
+provisioner de stockage par défaut dans cette configuration (découvert au
+moment d'attaquer la Phase 3, cf. `docs/apps-stack.md`), alors que
+`CONTEXT.md` supposait le contraire. Sans lui, aucun PVC ne peut se lier.
 
 ## Séquence de bootstrap (`make`)
 
