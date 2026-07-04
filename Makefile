@@ -90,10 +90,10 @@ ansible-vault: ansible-inventory ansible-inventory-vault
 	cd $(ANSIBLE_DIR) && ansible-playbook bootstrap-vault.yml
 
 # ══════════════════════════════════════════════════════════
-#  KUBERNETES
+#  KUBERNETES — fondation cluster (GitOps, pas d'Ansible)
 # ══════════════════════════════════════════════════════════
 
-.PHONY: kubeconfig nodes
+.PHONY: kubeconfig nodes k8s-secrets k8s-ccm k8s-bootstrap-argocd
 
 ## Récupérer le kubeconfig depuis le control-plane
 kubeconfig:
@@ -106,6 +106,49 @@ kubeconfig:
 ## Lister les nodes du cluster
 nodes:
 	KUBECONFIG=$(KUBECONFIG_FILE) kubectl get nodes -o wide
+
+## Créer les Secrets requis par la fondation cluster (Scaleway CCM, OVH DNS-01)
+## Lues depuis les mêmes variables d'environnement que Terraform + OVH_* (voir docs/setup-guide.md)
+k8s-secrets:
+	KUBECONFIG=$(KUBECONFIG_FILE) kubectl create secret generic scaleway-secret \
+		-n kube-system \
+		--from-literal=SCW_ACCESS_KEY="$$SCW_ACCESS_KEY" \
+		--from-literal=SCW_SECRET_KEY="$$SCW_SECRET_KEY" \
+		--from-literal=SCW_DEFAULT_PROJECT_ID="$$SCW_DEFAULT_PROJECT_ID" \
+		--from-literal=SCW_DEFAULT_REGION="$${SCW_DEFAULT_REGION:-fr-par}" \
+		--from-literal=SCW_DEFAULT_ZONE="$${SCW_DEFAULT_ZONE:-fr-par-2}" \
+		--dry-run=client -o yaml | KUBECONFIG=$(KUBECONFIG_FILE) kubectl apply -f -
+	KUBECONFIG=$(KUBECONFIG_FILE) kubectl create namespace cert-manager --dry-run=client -o yaml | KUBECONFIG=$(KUBECONFIG_FILE) kubectl apply -f -
+	KUBECONFIG=$(KUBECONFIG_FILE) kubectl create secret generic ovh-credentials \
+		-n cert-manager \
+		--from-literal=applicationKey="$$OVH_APPLICATION_KEY" \
+		--from-literal=applicationSecret="$$OVH_APPLICATION_SECRET" \
+		--from-literal=applicationConsumerKey="$$OVH_CONSUMER_KEY" \
+		--dry-run=client -o yaml | KUBECONFIG=$(KUBECONFIG_FILE) kubectl apply -f -
+
+## Déployer le CCM Scaleway — OBLIGATOIRE avant ArgoCD. RKE2 (cloud-provider-name:
+## external) tainte tous les nodes node.cloudprovider.kubernetes.io/uninitialized
+## tant qu'aucun CCM n'a tourné ; seul le CCM tolère ce taint, tout le reste
+## (y compris ArgoCD) reste Pending tant qu'il n'a pas été levé.
+k8s-ccm: k8s-secrets
+	KUBECONFIG=$(KUBECONFIG_FILE) kubectl apply -f kubernetes/00-infra/scaleway-ccm.yaml
+	KUBECONFIG=$(KUBECONFIG_FILE) kubectl wait --for=condition=available --timeout=300s deployment/scaleway-cloud-controller-manager -n kube-system
+
+## Bootstrap ArgoCD (manifeste officiel, pas de Helm) + App-of-Apps
+## --insecure : argocd-server sert en HTTP interne, TLS terminé par l'Ingress
+## NGINX via cert-manager (cf. kubernetes/00-infra/argocd-ingress.yaml)
+k8s-bootstrap-argocd: k8s-ccm
+	KUBECONFIG=$(KUBECONFIG_FILE) kubectl create namespace argocd --dry-run=client -o yaml | KUBECONFIG=$(KUBECONFIG_FILE) kubectl apply -f -
+	# --server-side : la CRD applicationsets.argoproj.io dépasse la limite de 256 Ko
+	# de l'annotation kubectl.kubernetes.io/last-applied-configuration en apply client-side
+	KUBECONFIG=$(KUBECONFIG_FILE) kubectl apply -n argocd --server-side --force-conflicts -f https://raw.githubusercontent.com/argoproj/argo-cd/stable/manifests/install.yaml
+	KUBECONFIG=$(KUBECONFIG_FILE) kubectl wait --for=condition=available --timeout=300s deployment/argocd-server -n argocd
+	KUBECONFIG=$(KUBECONFIG_FILE) kubectl patch deployment argocd-server -n argocd --type=json \
+		-p='[{"op":"add","path":"/spec/template/spec/containers/0/args/-","value":"--insecure"}]'
+	KUBECONFIG=$(KUBECONFIG_FILE) kubectl rollout status deployment/argocd-server -n argocd --timeout=300s
+	KUBECONFIG=$(KUBECONFIG_FILE) kubectl apply -f kubernetes/argocd-manager/root-app.yaml
+	@echo "ArgoCD admin password :"
+	@KUBECONFIG=$(KUBECONFIG_FILE) kubectl -n argocd get secret argocd-initial-admin-secret -o jsonpath="{.data.password}" | base64 -d; echo
 
 # ══════════════════════════════════════════════════════════
 #  UTILITAIRES
@@ -147,9 +190,12 @@ help:
 	@echo "    make ansible-k8s              Bootstrap complet K8s/RKE2"
 	@echo "    make ansible-vault            Bootstrap complet Vault (sans init/unseal)"
 	@echo ""
-	@echo "  KUBERNETES"
+	@echo "  KUBERNETES — fondation cluster (GitOps, cf. docs/cluster-foundation.md)"
 	@echo "    make kubeconfig           Récupérer le kubeconfig"
 	@echo "    make nodes                Lister les nodes"
+	@echo "    make k8s-secrets          Créer les Secrets (Scaleway CCM, OVH DNS-01)"
+	@echo "    make k8s-ccm              Déployer le CCM Scaleway (lève le taint uninitialized, requis avant ArgoCD)"
+	@echo "    make k8s-bootstrap-argocd Bootstrap ArgoCD + App-of-Apps (prend le relais sur le reste)"
 	@echo ""
 	@echo "  UTILITAIRES"
 	@echo "    make clean                Nettoyer les fichiers temporaires"

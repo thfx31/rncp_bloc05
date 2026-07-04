@@ -34,6 +34,11 @@ export SCW_DEFAULT_ORGANIZATION_ID=...
 # que le backend "s3" de Terraform attend réellement)
 export AWS_ACCESS_KEY_ID=$SCW_ACCESS_KEY
 export AWS_SECRET_ACCESS_KEY=$SCW_SECRET_KEY
+
+# Fondation cluster (Phase 2, make k8s-secrets) — DNS-01 OVH pour yplank.fr
+export OVH_APPLICATION_KEY=...
+export OVH_APPLICATION_SECRET=...
+export OVH_CONSUMER_KEY=...
 ```
 
 Pas besoin de `SCW_DEFAULT_REGION`/`SCW_DEFAULT_ZONE` : chaque ressource fixe
@@ -120,6 +125,21 @@ début de `tls.yml`.
 Statut confirmé : Vault tourne (scellé, non initialisé — attendu, voir `docs/vault.md`
 pour la suite manuelle).
 
-## 6. Phases suivantes
+## 6. Fondation cluster (Phase 2) — GitOps, pas d'Ansible
 
-Voir le découpage complet Phase 2 → 7 dans `CONTEXT.md`.
+Ansible s'arrête après un cluster RKE2 up (étape 4). CCM Scaleway, Hubble,
+ingress-nginx, cert-manager et ArgoCD sont gérés en GitOps — voir
+`docs/cluster-foundation.md` pour le détail et le pourquoi de ce choix.
+
+```bash
+make k8s-secrets           # Secrets scaleway-secret + ovh-credentials
+make k8s-ccm               # CCM Scaleway — lève le taint uninitialized, requis avant ArgoCD
+make k8s-bootstrap-argocd  # ArgoCD + App-of-Apps — prend le relais sur le reste
+```
+
+Repo GitHub **public** (`rncp_bloc05`) — ArgoCD clone en HTTPS anonyme, aucune
+credential à enregistrer.
+
+## 7. Phases suivantes
+
+Voir le découpage complet Phase 3 → 7 dans `CONTEXT.md`.
