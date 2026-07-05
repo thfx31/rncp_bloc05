@@ -19,6 +19,9 @@ spec:
         controller:
           admin:
             existingSecret: jenkins-admin-secret
+          containerEnv:
+            - name: TZ
+              value: Europe/Paris
           nodeSelector:
             kubernetes.io/hostname: rncp-bc05-worker-02
           ingress:
