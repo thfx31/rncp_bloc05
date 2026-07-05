@@ -48,11 +48,25 @@ RUN gcc -Wall -O2 -o /usr/local/bin/simulator /opt/simulator/simulator.c \
  && chmod +x /usr/local/bin/simulator \
  && rm -rf /opt/simulator
 
+# Build directory — bind-mount du workspace Jenkins (proprio root côté
+# hôte). chmod 1777 pour que l'utilisateur non-root (cf. USER plus bas)
+# puisse y écrire (build/*.o, firmware.elf).
 WORKDIR /workspace
+RUN chmod 1777 /workspace
 
 # Verify installation
 RUN gcc --version \
  && arm-linux-gnueabihf-gcc --version \
  && simulator --help 2>&1 || true
+
+# CKV_DOCKER_2 : HEALTHCHECK — image utilisée uniquement en one-shot CI
+# (compilation, jamais en service long), donc juste une vérif que la
+# toolchain reste utilisable.
+HEALTHCHECK --interval=5m --timeout=5s CMD gcc --version || exit 1
+
+# CKV_DOCKER_3 : ne pas tourner en root. Même UID que Dockerfile.legacy
+# (1000) pour rester cohérent entre les deux variantes.
+RUN useradd --uid 1000 --create-home builder
+USER builder
 
 CMD ["/bin/bash"]
