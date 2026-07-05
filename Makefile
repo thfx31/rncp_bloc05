@@ -94,7 +94,7 @@ ansible-vault: ansible-inventory ansible-inventory-vault
 #  KUBERNETES — fondation cluster (GitOps, pas d'Ansible)
 # ══════════════════════════════════════════════════════════
 
-.PHONY: kubeconfig nodes k8s-secrets k8s-ccm k8s-bootstrap-argocd k8s-apps-secrets gitlab-init jenkins-credentials
+.PHONY: kubeconfig nodes k8s-secrets k8s-ccm k8s-bootstrap-argocd k8s-apps-secrets gitlab-init harbor-init jenkins-credentials
 
 ## Récupérer le kubeconfig depuis le control-plane
 kubeconfig:
@@ -204,6 +204,21 @@ k8s-bootstrap-argocd: k8s-ccm
 gitlab-init:
 	KUBECONFIG=$(KUBECONFIG_FILE) ./scripts/gitlab-init.sh
 
+## Créer le projet Harbor "poc-ci" (idempotent) — sans ça, un docker push
+## échoue avec "unauthorized: project poc-ci not found". Harbor ne crée que
+## le projet "library" par défaut.
+harbor-init:
+	@HARBOR_PW=$$(KUBECONFIG=$(KUBECONFIG_FILE) kubectl get secret harbor-admin-password -n harbor -o jsonpath='{.data.HARBOR_ADMIN_PASSWORD}' | base64 -d); \
+	EXISTS=$$(curl -sk -u "admin:$$HARBOR_PW" https://harbor.k8s.yplank.fr/api/v2.0/projects/poc-ci -o /dev/null -w '%{http_code}'); \
+	if [ "$$EXISTS" = "200" ]; then \
+		echo "Projet Harbor poc-ci existe déjà — inchangé"; \
+	else \
+		curl -sk -u "admin:$$HARBOR_PW" -X POST https://harbor.k8s.yplank.fr/api/v2.0/projects \
+			-H "Content-Type: application/json" \
+			-d '{"project_name":"poc-ci","public":false}'; \
+		echo "Projet Harbor poc-ci créé"; \
+	fi
+
 ## Credentials Jenkins (Harbor, GitLab, Cosign) via kubernetes-credentials-provider
 ## — Secrets K8s labellisés jenkins.io/credentials-type, découverts automatiquement
 ## par Jenkins (namespace jenkins), aucune valeur en clair dans le repo, aucun
@@ -301,6 +316,7 @@ help:
 	@echo "    make k8s-bootstrap-argocd Bootstrap ArgoCD + App-of-Apps (prend le relais sur le reste)"
 	@echo "    make k8s-apps-secrets     Secrets admin stack applicative (Harbor, GitLab, SonarQube, Jenkins)"
 	@echo "    make gitlab-init          Bootstrap projet GitLab firmware-poc (Phase 4/6, cf. docs/firmware-poc.md)"
+	@echo "    make harbor-init          Créer le projet Harbor poc-ci (idempotent, requis avant tout push)"
 	@echo "    make jenkins-credentials  Credentials Jenkins Harbor/GitLab (auto-découverte K8s, cf. docs/apps-stack.md)"
 	@echo ""
 	@echo "  UTILITAIRES"
