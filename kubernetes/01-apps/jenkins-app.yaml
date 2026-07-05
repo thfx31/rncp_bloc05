@@ -50,15 +50,6 @@ spec:
             - pipeline-stage-view:latest
             - kubernetes-credentials-provider:latest
             - job-dsl:latest
-          # Token partagé avec le webhook GitLab (cf. scripts/gitlab-init.sh) —
-          # injecté en variable d'env depuis le Secret gitlab-webhook-token
-          # (ns jenkins), jamais en clair dans ce fichier.
-          containerEnv:
-            - name: GITLAB_WEBHOOK_TOKEN
-              valueFrom:
-                secretKeyRef:
-                  name: gitlab-webhook-token
-                  key: token
           JCasC:
             configScripts:
               # Définit le job pipeline firmware-poc de façon déclarative
@@ -85,7 +76,6 @@ spec:
                           gitlabPush {
                             buildOnPushEvents(true)
                             buildOnMergeRequestEvents(false)
-                            secretToken(System.getenv('GITLAB_WEBHOOK_TOKEN'))
                           }
                         }
                       }
