@@ -149,12 +149,15 @@ spec:
                         // d'écriture (USER root implicite, secrets en ARG, etc.)
                         def checkovResult = sh(
                             script: """
-                                checkov --quiet --compact \
+                                checkov --compact \
                                     --file ${DOCKERFILE_PATH} \
-                                    --framework dockerfile
+                                    --framework dockerfile \
+                                    --output cli --output json \
+                                    --output-file-path console,checkov-report.json
                             """,
                             returnStatus: true
                         )
+                        archiveArtifacts artifacts: "checkov-report.json"
                         if (checkovResult != 0) {
                             error("Checkov FAILED — Dockerfile non conforme, voir le rapport ci-dessus")
                         }
@@ -233,6 +236,21 @@ spec:
             steps {
                 container("trivy") {
                     script {
+                        // Rapport JSON toujours généré (succès ou échec) — exit-code 0
+                        // ici, la décision fail/pass est prise par le 2e appel juste
+                        // après (même scan, DB de vulnérabilités déjà en cache donc
+                        // quasi instantané).
+                        sh """
+                            trivy image \
+                                --exit-code 0 \
+                                --severity HIGH,CRITICAL \
+                                --no-progress \
+                                --format json \
+                                --output trivy-report.json \
+                                ${env.FULL_IMAGE_LATEST}
+                        """
+                        archiveArtifacts artifacts: "trivy-report.json"
+
                         def trivyResult = sh(
                             script: """
                                 trivy image \
@@ -246,17 +264,7 @@ spec:
                         )
 
                         if (trivyResult != 0) {
-                            sh """
-                                trivy image \
-                                    --exit-code 0 \
-                                    --severity HIGH,CRITICAL \
-                                    --no-progress \
-                                    --format json \
-                                    --output trivy-report.json \
-                                    ${env.FULL_IMAGE_LATEST}
-                            """
-                            archiveArtifacts artifacts: "trivy-report.json"
-                            error("Trivy FAILED — vulnérabilités HIGH/CRITICAL détectées")
+                            error("Trivy FAILED — vulnérabilités HIGH/CRITICAL détectées (voir trivy-report.json)")
                         }
 
                         echo "Trivy PASSED — aucune vulnérabilité HIGH/CRITICAL"
@@ -321,6 +329,9 @@ spec:
                                 -Dsonar.qualitygate.wait=true
                         """
                     }
+                    // Pas d'artefact local : le "rapport" est le dashboard SonarQube
+                    // lui-même (résultats poussés directement sur le serveur).
+                    echo "Rapport SonarQube : ${SONAR_HOST_URL}/dashboard?id=${SONAR_PROJECT_KEY}"
                 }
             }
         }
