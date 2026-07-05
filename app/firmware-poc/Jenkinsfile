@@ -35,6 +35,8 @@ pipeline {
 apiVersion: v1
 kind: Pod
 spec:
+  nodeSelector:
+    kubernetes.io/hostname: rncp-bc05-worker-01
   volumes:
     - name: workspace-volume
       emptyDir: {}
@@ -80,32 +82,17 @@ spec:
         - name: DOCKER_HOST
           value: tcp://localhost:2375
     # Conteneur dédié Checkov (lint sécurité du Dockerfile — pas besoin du
-    # daemon Docker, il ne fait que lire le fichier)
+    # daemon Docker, il ne fait que lire le fichier). Attention au nom exact
+    # de l'image : "bridgecrewio/checkov" n'existe pas sur Docker Hub, c'est
+    # "bridgecrew/checkov" (sans le "io") — et pas de tag "latest", pinné en
+    # 3.3.6.
     - name: checkov
-      image: bridgecrewio/checkov:latest
+      image: bridgecrew/checkov:3.3.6
       command: ["cat"]
       tty: true
       volumeMounts:
         - name: workspace-volume
           mountPath: /home/jenkins/agent
-    # Conteneur dédié Syft (génération SBOM depuis l'image buildée)
-    - name: syft
-      image: anchore/syft:latest
-      command: ["cat"]
-      tty: true
-      env:
-        - name: DOCKER_HOST
-          value: tcp://localhost:2375
-    # Conteneur dédié Cosign (signature + attestation)
-    - name: cosign
-      image: gcr.io/projectsigstore/cosign:v2.4.1
-      command: ["cat"]
-      tty: true
-      env:
-        - name: DOCKER_HOST
-          value: tcp://localhost:2375
-        - name: COSIGN_PASSWORD
-          value: ""
 """
         }
     }
@@ -280,10 +267,16 @@ spec:
 
         stage("Syft SBOM") {
             steps {
-                container("syft") {
+                container("builder") {
                     script {
+                        // Installé à la volée dans le conteneur builder (docker-cli,
+                        // Alpine) — plus simple que de spawn un container syft séparé
+                        // via "docker run" (qui ne partagerait pas le réseau du pod
+                        // pour joindre le daemon DinD en localhost:2375).
+                        sh "wget -qO- https://raw.githubusercontent.com/anchore/syft/main/install.sh | sh -s -- -b /usr/local/bin"
                         // "docker:" force la lecture depuis le daemon DinD (image pas
-                        // encore poussée sur Harbor à ce stade du pipeline)
+                        // encore poussée sur Harbor à ce stade du pipeline) — syft lit
+                        // DOCKER_HOST comme le ferait le CLI docker.
                         sh """
                             syft docker:${env.FULL_IMAGE_LATEST} \
                                 -o spdx-json=sbom.json
@@ -368,7 +361,13 @@ spec:
 
         stage("Cosign sign") {
             steps {
-                container("cosign") {
+                container("builder") {
+                    script {
+                        // Cosign ne parle qu'au registre (Harbor), pas au daemon Docker
+                        // — pas besoin d'un conteneur dédié avec DOCKER_HOST, juste le
+                        // binaire (statique, tourne tel quel sur Alpine/musl).
+                        sh "wget -qO /usr/local/bin/cosign https://github.com/sigstore/cosign/releases/latest/download/cosign-linux-amd64 && chmod +x /usr/local/bin/cosign"
+                    }
                     withCredentials([
                         usernamePassword(
                             credentialsId: "harbor-credentials",
@@ -383,8 +382,8 @@ spec:
                         sh """
                             cosign login ${HARBOR_URL} -u \$HARBOR_USER -p \$HARBOR_PASS
                             echo "\$COSIGN_KEY_CONTENT" > cosign.key
-                            cosign sign --key cosign.key --yes ${env.FULL_IMAGE_VERSIONED}
-                            cosign attest --key cosign.key --yes \
+                            COSIGN_PASSWORD="" cosign sign --key cosign.key --yes ${env.FULL_IMAGE_VERSIONED}
+                            COSIGN_PASSWORD="" cosign attest --key cosign.key --yes \
                                 --predicate sbom.json --type spdxjson \
                                 ${env.FULL_IMAGE_VERSIONED}
                             rm -f cosign.key
