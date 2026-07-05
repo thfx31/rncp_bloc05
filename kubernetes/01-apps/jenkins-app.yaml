@@ -48,6 +48,7 @@ spec:
             - docker-workflow:latest
             - blueocean:latest
             - pipeline-stage-view:latest
+            - kubernetes-credentials-provider:latest
         persistence:
           enabled: true
           storageClass: local-path
