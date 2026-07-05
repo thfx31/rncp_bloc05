@@ -307,7 +307,7 @@ spec:
         stage("SonarQube analysis") {
             steps {
                 container("builder") {
-                    withCredentials([string(credentialsId: "sonarqube", variable: "SONAR_TOKEN")]) {
+                    withCredentials([string(credentialsId: "sonarqube-token", variable: "SONAR_TOKEN")]) {
                         sh """
                             docker run --rm \
                                 -e SONAR_HOST_URL=${SONAR_HOST_URL} \
