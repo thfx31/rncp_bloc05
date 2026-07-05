@@ -50,12 +50,28 @@ RUN gcc -Wall -O2 -o /usr/local/bin/simulator /opt/simulator/simulator.c \
  && chmod +x /usr/local/bin/simulator \
  && rm -rf /opt/simulator
 
-# Build directory — firmware sources will be mounted/copied here
+# Build directory — firmware sources will be mounted/copied here.
+# chmod 1777 (comme /tmp) : le conteneur tourne en non-root (cf. USER plus bas)
+# mais /workspace est un bind-mount du workspace Jenkins (proprio root côté
+# hôte, checkout git fait par le conteneur "builder") — sans ça, l'utilisateur
+# non-root ne pourrait pas écrire dedans (build/*.o, firmware.elf).
 WORKDIR /workspace
+RUN chmod 1777 /workspace
 
 # Verify installation
 RUN gcc --version \
  && arm-linux-gnueabi-gcc --version \
  && simulator --help 2>&1 || true
+
+# CKV_DOCKER_2 : HEALTHCHECK — image utilisée uniquement en one-shot CI
+# (compilation, jamais en service long), donc juste une vérif que la
+# toolchain reste utilisable.
+HEALTHCHECK --interval=5m --timeout=5s CMD gcc --version || exit 1
+
+# CKV_DOCKER_3 : ne pas tourner en root. UID 1000 pour matcher l'UID par
+# défaut le plus courant sur les runners CI (évite en pratique les
+# problèmes de permissions sur des volumes montés).
+RUN useradd --uid 1000 --create-home builder
+USER builder
 
 CMD ["/bin/bash"]
