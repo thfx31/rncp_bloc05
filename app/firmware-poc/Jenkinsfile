@@ -1,13 +1,20 @@
 // =============================================================================
 // Jenkinsfile — POC CI/CD pipeline (Phase 4 — DevSecOps)
 //
+// Paramétré (VARIANT: legacy/modern) — démontre la problématique de départ
+// (CONTEXT.md) : toolchains figées par OS (Ubuntu 18.04 EOL vs 22.04) qui
+// imposaient jadis des workstations/nodes Jenkins dédiés par OS. Ici, les
+// deux tournent comme agents Kubernetes dynamiques sur le même cluster, à
+// la demande — pas besoin d'un node par OS. Le webhook GitLab déclenche
+// "legacy" par défaut ; "modern" se lance via "Build with Parameters".
+//
 // Stages :
 //   1. Checkout          — récupère le code depuis GitLab
 //   2. Checkov scan      — lint sécurité du Dockerfile, FAIL sur finding bloquant
-//   3. Build Docker image — rebuild l'image legacy si Dockerfile modifié
+//   3. Build Docker image — rebuild l'image si Dockerfile modifié
 //   4. Trivy scan        — scan de vulnérabilités, FAIL si HIGH/CRITICAL
 //   5. Syft SBOM         — inventaire des paquets de l'image (SPDX)
-//   6. Build firmware    — compilation dans le conteneur legacy
+//   6. Build firmware    — compilation dans le conteneur (gcc-7 legacy / gcc-12 modern)
 //   7. SonarQube         — analyse statique + Quality Gate
 //   8. Simulator         — validation ELF du binaire produit
 //   9. Push Harbor       — pousse l'image validée
@@ -27,9 +34,14 @@
 
 pipeline {
 
+    parameters {
+        choice(name: "VARIANT", choices: ["legacy", "modern"],
+               description: "legacy = Ubuntu 18.04/gcc-7 (défaut, webhook) — modern = Ubuntu 22.04/gcc-12")
+    }
+
     agent {
         kubernetes {
-            label "jenkins-agent-${BUILD_NUMBER}"
+            label "jenkins-agent-${params.VARIANT}-${BUILD_NUMBER}"
             defaultContainer "builder"
             yaml """
 apiVersion: v1
@@ -101,13 +113,22 @@ spec:
         // HARBOR_URL et SONAR_HOST_URL sont définis dans Jenkins :
         // Manage Jenkins → System → Global properties → Environment variables
         HARBOR_PROJECT  = "poc-ci"
-        IMAGE_NAME      = "build-legacy-ubuntu18"
+        IMAGE_NAME      = "${params.VARIANT == 'modern' ? 'build-modern-ubuntu22' : 'build-legacy-ubuntu18'}"
         FULL_IMAGE      = "${HARBOR_URL}/${HARBOR_PROJECT}/${IMAGE_NAME}"
 
-        DOCKERFILE_PATH = "docker/Dockerfile.legacy"
+        // Dockerfile.legacy / Dockerfile.modern — le nom du paramètre matche
+        // directement le suffixe du fichier.
+        DOCKERFILE_PATH = "docker/Dockerfile.${params.VARIANT}"
         BUILD_OUTPUT    = "build/firmware.elf"
 
-        SONAR_PROJECT_KEY = "firmware-poc"
+        SONAR_PROJECT_KEY = "${params.VARIANT == 'modern' ? 'firmware-poc-modern' : 'firmware-poc'}"
+
+        // Ubuntu 22.04 (modern) a encore des CVE sans correctif dispo au
+        // moment du build — on les ignore pour ce variant afin de ne bloquer
+        // que sur du réellement actionnable. Ubuntu 18.04 (legacy, EOL) reste
+        // scanné strictement : c'est justement l'argument de démo (l'image
+        // legacy accumule des CVE non corrigeables, la modern beaucoup moins).
+        TRIVY_EXTRA_ARGS = "${params.VARIANT == 'modern' ? '--ignore-unfixed' : ''}"
     }
 
     options {
@@ -245,6 +266,7 @@ spec:
                                 --exit-code 0 \
                                 --severity HIGH,CRITICAL \
                                 --no-progress \
+                                ${TRIVY_EXTRA_ARGS} \
                                 --format json \
                                 --output trivy-report.json \
                                 ${env.FULL_IMAGE_LATEST}
@@ -257,6 +279,7 @@ spec:
                                     --exit-code 1 \
                                     --severity HIGH,CRITICAL \
                                     --no-progress \
+                                    ${TRIVY_EXTRA_ARGS} \
                                     --format table \
                                     ${env.FULL_IMAGE_LATEST}
                             """,
