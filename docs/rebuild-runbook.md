@@ -139,7 +139,59 @@ kubectl get application -n argocd   # attendre Synced/Healthy sur harbor/gitlab/
 Rien à ajouter côté DNS — le wildcard `*.k8s.yplank.fr` (étape 6) couvre déjà
 ces 4 sous-domaines.
 
-## 9. Nettoyage en fin de session (destroy)
+## 9. Pipeline sécurisé (Phase 4/6) — firmware-poc
+
+Détail complet : `docs/apps-stack.md` (credentials/webhook) et
+`docs/cosign.md` (clé de signature).
+
+```bash
+# 1. Clé Cosign (une seule fois, réutilisable entre rebuilds — ~/.cosign/rncp-bc05/)
+COSIGN_PASSWORD="" cosign generate-key-pair   # si ~/.cosign/rncp-bc05/cosign.key absent
+
+# 2. Projet Harbor "poc-ci" — sans lui, le premier docker push échoue avec
+#    "unauthorized: project poc-ci not found" (Harbor ne crée que "library"
+#    par défaut)
+make harbor-init
+
+# 3. Bootstrap GitLab (groupe/projet + push du code, webhook pas encore possible)
+make gitlab-init
+
+# 4. Credentials Jenkins (Harbor/GitLab/Cosign + token webhook) — puis attendre
+#    le redémarrage du pod Jenkins (nouveau plugin/env var, ~1-2 min)
+make jenkins-credentials
+
+# 5. Relancer gitlab-init — configure le webhook GitLab -> Jenkins cette fois
+make gitlab-init
+
+# 6. Étape manuelle : générer un token SonarQube (admin/admin, changement de
+#    mot de passe forcé au 1er login) puis :
+kubectl create secret generic sonarqube-token -n jenkins --from-literal=text="<token>"
+kubectl label secret sonarqube-token -n jenkins jenkins.io/credentials-type=secretText
+```
+
+**Premier build** : le job `firmware-poc` est créé automatiquement (Job DSL,
+au démarrage de Jenkins) mais Jenkins n'affiche **Build with Parameters**
+(paramètre `VARIANT: legacy|modern`) qu'après avoir exécuté le Jenkinsfile
+au moins une fois — lancer un premier `Build Now` (tourne avec les valeurs
+par défaut), puis rafraîchir la page du job.
+
+Le webhook GitLab déclenche automatiquement `VARIANT=legacy` à chaque push
+sur le projet `firmware-poc`. `VARIANT=modern` (Ubuntu 22.04/gcc-12) se
+lance uniquement à la main via **Build with Parameters** — démontre que les
+deux OS tournent comme agents Kubernetes dynamiques sur le même cluster,
+sans node Jenkins dédié par OS (cf. `CONTEXT.md`, problématique de départ).
+
+**Piège connu** : après un push touchant `kubernetes/01-apps/*.yaml` (ex.
+nouveau plugin Jenkins, nouveau manifeste RBAC), rafraîchir/sync l'app
+enfant (`jenkins`, `harbor`...) dans l'UI ArgoCD **ne sert à rien** — ces
+apps enfants ont leur `source` sur le chart Helm (`charts.jenkins.io`...),
+pas sur Git. C'est l'app du **layer** (`layer-01-apps`) qu'il faut
+refresh/sync en premier : elle relit Git et met à jour la définition de
+l'app enfant, qui se resync ensuite toute seule (`selfHeal`). Vérifier
+`kubectl get application layer-01-apps -n argocd -o jsonpath='{.status.sync.revision}'`
+correspond au dernier commit avant de lancer 3-4 ci-dessus.
+
+## 10. Nettoyage en fin de session (destroy)
 
 ```bash
 make tf-vault-destroy

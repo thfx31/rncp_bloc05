@@ -145,6 +145,18 @@ make k8s-bootstrap-argocd  # ArgoCD + App-of-Apps — prend le relais sur le res
 Repo GitHub **public** (`rncp_bloc05`) — ArgoCD clone en HTTPS anonyme, aucune
 credential à enregistrer.
 
-## 7. Phases suivantes
+## 7. Stack applicative (Phase 3) — Harbor, GitLab, SonarQube, Jenkins
 
-Voir le découpage complet Phase 3 → 7 dans `CONTEXT.md`.
+**Étape à ne pas oublier** — sans elle, Harbor/SonarQube/Jenkins restent bloqués
+(`ContainerCreating`/`CreateContainerConfigError`/`Init`) faute de secret admin :
+
+```bash
+make k8s-apps-secrets   # Secrets admin Harbor/GitLab/Jenkins (générés, affichés une fois) + SonarQube passcode
+```
+
+`layer-01-apps` (sync-wave 1) prend le relais tout seul ensuite. Détail complet :
+`docs/apps-stack.md` et `docs/rebuild-runbook.md`.
+
+## 8. Phases suivantes
+
+Voir le découpage complet Phase 4 → 7 dans `CONTEXT.md`.

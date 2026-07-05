@@ -26,3 +26,11 @@ Tableau vivant, complété à chaque décision (cf. CONTEXT.md).
 | Mots de passe admin | Générés aléatoirement via `make k8s-apps-secrets`, jamais commités (mécanismes `existingSecret` natifs de chaque chart) | `rncp_bloc05` est un repo **public** — l'ancien repo `infra-rncp` committait des mots de passe en clair (`Ch4ng3M3!`), acceptable pour un repo privé mais pas ici |
 | GitLab — composants désactivés | `registry`, `gitlab-runner`, `prometheus`, `pages`, `kas` désactivés dans le chart | Redondant avec Harbor (registry) et l'observabilité déjà prévue en Phase 5 ; scope POC serré, cf. CONTEXT.md |
 | GitLab — version de chart | Figé en `9.11.7`, pas la dernière branche `10.x` | Le chart `10.x` a supprimé les sous-charts PostgreSQL/Redis embarqués (base externe désormais obligatoire) — hors scope pour un POC 5 min, pas de valeur de démo à en tirer. La branche `9.x` reçoit encore des mises à jour de sécurité sur l'image GitLab elle-même |
+
+## Sécurité (Phase 4) — Cosign
+
+| Aspect | Choix POC | Justification |
+|---|---|---|
+| Mode de signature | Clé statique (`cosign generate-key-pair`), pas keyless/Sigstore | Pas de dépendance à la joignabilité de `fulcio.sigstore.dev`/`rekor.sigstore.dev` ni à un OIDC issuer externe le jour de la soutenance — démo autonome et fiable |
+| Passphrase clé privée | Vide (`COSIGN_PASSWORD=""`) | Permet une signature non-interactive depuis un pipeline Jenkins ; clé privée jamais committée, protégée uniquement par son emplacement hors repo (`~/.cosign/rncp-bc05/`) et les permissions fichier |
+| Stockage clé privée | Hors repo (poste opérateur), pas dans Vault | Évite de faire dépendre la capacité de signer d'un Vault unsealed ; piste prod = Vault Transit KMS (`cosign sign --key hashivault://...`), non implémentée ici — cf. `docs/cosign.md` |
