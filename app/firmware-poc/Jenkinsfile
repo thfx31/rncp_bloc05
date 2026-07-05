@@ -1,0 +1,422 @@
+// =============================================================================
+// Jenkinsfile — POC CI/CD pipeline (Phase 4 — DevSecOps)
+//
+// Stages :
+//   1. Checkout          — récupère le code depuis GitLab
+//   2. Checkov scan      — lint sécurité du Dockerfile, FAIL sur finding bloquant
+//   3. Build Docker image — rebuild l'image legacy si Dockerfile modifié
+//   4. Trivy scan        — scan de vulnérabilités, FAIL si HIGH/CRITICAL
+//   5. Syft SBOM         — inventaire des paquets de l'image (SPDX)
+//   6. Build firmware    — compilation dans le conteneur legacy
+//   7. SonarQube         — analyse statique + Quality Gate
+//   8. Simulator         — validation ELF du binaire produit
+//   9. Push Harbor       — pousse l'image validée
+//  10. Cosign sign       — signe l'image poussée + atteste le SBOM
+//
+// Prérequis Jenkins (Credentials, auto-découverts via kubernetes-credentials-
+// provider — cf. docs/apps-stack.md, aucune valeur en clair ici) :
+//   - harbor-credentials  : Username/Password
+//   - gitlab-credentials  : Username/Password
+//   - sonarqube-token     : Secret text (token généré manuellement dans SonarQube)
+//   - cosign-private-key  : Secret text (contenu de cosign.key, passphrase vide)
+//
+// Prérequis Jenkins (System) :
+//   - SonarQube server nommé "sonarqube" dans Manage Jenkins > System
+//   - Variables globales HARBOR_URL / SONAR_HOST_URL (JCasC, cf. jenkins-app.yaml)
+// =============================================================================
+
+pipeline {
+
+    agent {
+        kubernetes {
+            label "jenkins-agent-${BUILD_NUMBER}"
+            defaultContainer "builder"
+            yaml """
+apiVersion: v1
+kind: Pod
+spec:
+  volumes:
+    - name: workspace-volume
+      emptyDir: {}
+  containers:
+    # Docker-in-Docker daemon (nécessaire car le runtime est containerd, pas Docker)
+    # En production : utiliser Kaniko pour des builds sans daemon Docker
+    - name: dind
+      image: docker:24-dind
+      securityContext:
+        privileged: true
+      env:
+        - name: DOCKER_TLS_CERTDIR
+          value: ""
+      resources:
+        requests:
+          cpu: 200m
+          memory: 256Mi
+        limits:
+          memory: 1Gi
+    # Conteneur principal : Docker CLI pointant vers le daemon DinD
+    - name: builder
+      image: docker:24-cli
+      command: ["cat"]
+      tty: true
+      env:
+        - name: DOCKER_HOST
+          value: tcp://localhost:2375
+      volumeMounts:
+        - name: workspace-volume
+          mountPath: /home/jenkins/agent
+      resources:
+        requests:
+          cpu: 200m
+          memory: 256Mi
+        limits:
+          memory: 1Gi
+    # Conteneur dédié Trivy
+    - name: trivy
+      image: aquasec/trivy:latest
+      command: ["cat"]
+      tty: true
+      env:
+        - name: DOCKER_HOST
+          value: tcp://localhost:2375
+    # Conteneur dédié Checkov (lint sécurité du Dockerfile — pas besoin du
+    # daemon Docker, il ne fait que lire le fichier)
+    - name: checkov
+      image: bridgecrewio/checkov:latest
+      command: ["cat"]
+      tty: true
+      volumeMounts:
+        - name: workspace-volume
+          mountPath: /home/jenkins/agent
+    # Conteneur dédié Syft (génération SBOM depuis l'image buildée)
+    - name: syft
+      image: anchore/syft:latest
+      command: ["cat"]
+      tty: true
+      env:
+        - name: DOCKER_HOST
+          value: tcp://localhost:2375
+    # Conteneur dédié Cosign (signature + attestation)
+    - name: cosign
+      image: gcr.io/projectsigstore/cosign:v2.4.1
+      command: ["cat"]
+      tty: true
+      env:
+        - name: DOCKER_HOST
+          value: tcp://localhost:2375
+        - name: COSIGN_PASSWORD
+          value: ""
+"""
+        }
+    }
+
+    environment {
+        // HARBOR_URL et SONAR_HOST_URL sont définis dans Jenkins :
+        // Manage Jenkins → System → Global properties → Environment variables
+        HARBOR_PROJECT  = "poc-ci"
+        IMAGE_NAME      = "build-legacy-ubuntu18"
+        FULL_IMAGE      = "${HARBOR_URL}/${HARBOR_PROJECT}/${IMAGE_NAME}"
+
+        DOCKERFILE_PATH = "docker/Dockerfile.legacy"
+        BUILD_OUTPUT    = "build/firmware.elf"
+
+        SONAR_PROJECT_KEY = "firmware-poc"
+    }
+
+    options {
+        timeout(time: 30, unit: "MINUTES")
+        buildDiscarder(logRotator(numToKeepStr: "10"))
+        disableConcurrentBuilds()
+    }
+
+    stages {
+
+        stage("Checkout") {
+            steps {
+                container("builder") {
+                    // Fix git safe.directory pour éviter "dubious ownership"
+                    sh "git config --global --add safe.directory '*'"
+                    checkout scm
+                    script {
+                        env.GIT_COMMIT_SHORT = sh(
+                            script: "git rev-parse --short HEAD",
+                            returnStdout: true
+                        ).trim()
+                        env.FULL_IMAGE_VERSIONED = "${FULL_IMAGE}:${env.GIT_COMMIT_SHORT}"
+                        env.FULL_IMAGE_LATEST    = "${FULL_IMAGE}:latest"
+
+                        echo "Branch  : ${env.GIT_BRANCH}"
+                        echo "Commit  : ${env.GIT_COMMIT_SHORT}"
+                        echo "Image   : ${env.FULL_IMAGE_VERSIONED}"
+                    }
+                }
+            }
+        }
+
+        stage("Checkov scan") {
+            steps {
+                container("checkov") {
+                    script {
+                        // Lint sécurité du Dockerfile lui-même (pas de l'image buildée,
+                        // c'est le rôle de Trivy plus loin) — mauvaises pratiques
+                        // d'écriture (USER root implicite, secrets en ARG, etc.)
+                        def checkovResult = sh(
+                            script: """
+                                checkov --quiet --compact \
+                                    --file ${DOCKERFILE_PATH} \
+                                    --framework dockerfile
+                            """,
+                            returnStatus: true
+                        )
+                        if (checkovResult != 0) {
+                            error("Checkov FAILED — Dockerfile non conforme, voir le rapport ci-dessus")
+                        }
+                        echo "Checkov PASSED"
+                    }
+                }
+            }
+        }
+
+        stage("Build Docker image") {
+            steps {
+                container("builder") {
+                    // Attendre que le daemon DinD soit prêt
+                    sh """
+                        echo "Waiting for Docker daemon..."
+                        for i in \$(seq 1 30); do
+                            docker info > /dev/null 2>&1 && echo "Docker daemon ready" && break
+                            echo "Attempt \$i/30 — waiting 3s..."
+                            sleep 3
+                        done
+                        docker info > /dev/null 2>&1 || (echo "Docker daemon not available after 90s" && exit 1)
+                    """
+                    script {
+                        def dockerfileChanged = sh(
+                            script: "git diff --name-only HEAD~1 HEAD 2>/dev/null | grep -q '${DOCKERFILE_PATH}' && echo 'true' || echo 'false'",
+                            returnStdout: true
+                        ).trim()
+
+                        if (env.BUILD_NUMBER == "1") {
+                            dockerfileChanged = "true"
+                        }
+
+                        withCredentials([usernamePassword(
+                            credentialsId: "harbor-credentials",
+                            usernameVariable: "HARBOR_USER",
+                            passwordVariable: "HARBOR_PASS"
+                        )]) {
+                            sh "docker login ${HARBOR_URL} -u ${HARBOR_USER} -p ${HARBOR_PASS}"
+
+                            if (dockerfileChanged == "true") {
+                                echo "Dockerfile modifié — rebuild de l'image"
+                                sh """
+                                    docker build \
+                                        -t ${env.FULL_IMAGE_VERSIONED} \
+                                        -t ${env.FULL_IMAGE_LATEST} \
+                                        -f ${DOCKERFILE_PATH} \
+                                        .
+                                """
+                            } else {
+                                echo "Dockerfile inchangé — pull depuis Harbor"
+                                def pullResult = sh(
+                                    script: "docker pull ${env.FULL_IMAGE_LATEST}",
+                                    returnStatus: true
+                                )
+                                if (pullResult != 0) {
+                                    echo "Image absente sur Harbor — rebuild"
+                                    sh """
+                                        docker build \
+                                            -t ${env.FULL_IMAGE_VERSIONED} \
+                                            -t ${env.FULL_IMAGE_LATEST} \
+                                            -f ${DOCKERFILE_PATH} \
+                                            .
+                                    """
+                                } else {
+                                    // Retagger l'image pullée avec le hash du commit courant
+                                    sh "docker tag ${env.FULL_IMAGE_LATEST} ${env.FULL_IMAGE_VERSIONED}"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        stage("Trivy scan") {
+            steps {
+                container("trivy") {
+                    script {
+                        def trivyResult = sh(
+                            script: """
+                                trivy image \
+                                    --exit-code 1 \
+                                    --severity HIGH,CRITICAL \
+                                    --no-progress \
+                                    --format table \
+                                    ${env.FULL_IMAGE_LATEST}
+                            """,
+                            returnStatus: true
+                        )
+
+                        if (trivyResult != 0) {
+                            sh """
+                                trivy image \
+                                    --exit-code 0 \
+                                    --severity HIGH,CRITICAL \
+                                    --no-progress \
+                                    --format json \
+                                    --output trivy-report.json \
+                                    ${env.FULL_IMAGE_LATEST}
+                            """
+                            archiveArtifacts artifacts: "trivy-report.json"
+                            error("Trivy FAILED — vulnérabilités HIGH/CRITICAL détectées")
+                        }
+
+                        echo "Trivy PASSED — aucune vulnérabilité HIGH/CRITICAL"
+                    }
+                }
+            }
+        }
+
+        stage("Syft SBOM") {
+            steps {
+                container("syft") {
+                    script {
+                        // "docker:" force la lecture depuis le daemon DinD (image pas
+                        // encore poussée sur Harbor à ce stade du pipeline)
+                        sh """
+                            syft docker:${env.FULL_IMAGE_LATEST} \
+                                -o spdx-json=sbom.json
+                        """
+                        archiveArtifacts artifacts: "sbom.json"
+                        echo "SBOM généré : sbom.json"
+                    }
+                }
+            }
+        }
+
+        stage("Build firmware") {
+            steps {
+                container("builder") {
+                    sh """
+                        docker run --rm \
+                            -v \$(pwd):/workspace \
+                            -w /workspace \
+                            ${env.FULL_IMAGE_LATEST} \
+                            make TARGET=x86 clean all
+                    """
+                    sh "test -f ${BUILD_OUTPUT} || (echo 'Binaire introuvable!' && exit 1)"
+                    echo "Firmware compilé : ${BUILD_OUTPUT}"
+                }
+            }
+        }
+
+        stage("SonarQube analysis") {
+            steps {
+                container("builder") {
+                    withCredentials([string(credentialsId: "sonarqube", variable: "SONAR_TOKEN")]) {
+                        sh """
+                            docker run --rm \
+                                -e SONAR_HOST_URL=${SONAR_HOST_URL} \
+                                -e SONAR_TOKEN=\${SONAR_TOKEN} \
+                                -v \$(pwd):/usr/src \
+                                sonarsource/sonar-scanner-cli:latest \
+                                -Dsonar.projectKey=${SONAR_PROJECT_KEY} \
+                                -Dsonar.projectName="Firmware POC" \
+                                -Dsonar.sources=/usr/src/src \
+                                -Dsonar.language=c \
+                                -Dsonar.qualitygate.wait=true
+                        """
+                    }
+                }
+            }
+        }
+
+        stage("Simulator") {
+            steps {
+                container("builder") {
+                    sh """
+                        docker run --rm \
+                            -v \$(pwd):/workspace \
+                            -w /workspace \
+                            ${env.FULL_IMAGE_LATEST} \
+                            simulator ${BUILD_OUTPUT}
+                    """
+                    echo "Simulator PASSED — binaire validé"
+                }
+            }
+        }
+
+        stage("Push Harbor") {
+            steps {
+                container("builder") {
+                    withCredentials([usernamePassword(
+                        credentialsId: "harbor-credentials",
+                        usernameVariable: "HARBOR_USER",
+                        passwordVariable: "HARBOR_PASS"
+                    )]) {
+                        sh """
+                            docker login ${HARBOR_URL} -u ${HARBOR_USER} -p ${HARBOR_PASS}
+                            docker push ${env.FULL_IMAGE_VERSIONED}
+                            docker push ${env.FULL_IMAGE_LATEST}
+                        """
+                    }
+                    echo "Image poussée : ${env.FULL_IMAGE_VERSIONED}"
+                }
+            }
+        }
+
+        stage("Cosign sign") {
+            steps {
+                container("cosign") {
+                    withCredentials([
+                        usernamePassword(
+                            credentialsId: "harbor-credentials",
+                            usernameVariable: "HARBOR_USER",
+                            passwordVariable: "HARBOR_PASS"
+                        ),
+                        string(
+                            credentialsId: "cosign-private-key",
+                            variable: "COSIGN_KEY_CONTENT"
+                        )
+                    ]) {
+                        sh """
+                            cosign login ${HARBOR_URL} -u \$HARBOR_USER -p \$HARBOR_PASS
+                            echo "\$COSIGN_KEY_CONTENT" > cosign.key
+                            cosign sign --key cosign.key --yes ${env.FULL_IMAGE_VERSIONED}
+                            cosign attest --key cosign.key --yes \
+                                --predicate sbom.json --type spdxjson \
+                                ${env.FULL_IMAGE_VERSIONED}
+                            rm -f cosign.key
+                        """
+                    }
+                    echo "Image signée + SBOM attesté : ${env.FULL_IMAGE_VERSIONED}"
+                }
+            }
+        }
+
+    }
+
+    post {
+        success {
+            echo """
+            ============================================================
+             Pipeline PASSED
+             Image  : ${env.FULL_IMAGE_VERSIONED}
+             Commit : ${env.GIT_COMMIT_SHORT}
+            ============================================================
+            """
+        }
+        failure {
+            echo "Pipeline FAILED — voir les logs ci-dessus"
+        }
+        always {
+            container("builder") {
+                sh """
+                    docker rmi ${env.FULL_IMAGE_VERSIONED} ${env.FULL_IMAGE_LATEST} 2>/dev/null || true
+                    docker logout ${HARBOR_URL} 2>/dev/null || true
+                """
+            }
+        }
+    }
+}

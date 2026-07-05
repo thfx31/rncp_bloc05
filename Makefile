@@ -10,6 +10,7 @@ TF_CLUSTER_DIR   := terraform/cluster
 TF_VAULT_DIR     := terraform/vault
 KUBECONFIG_FILE  := $(HOME)/.kube/config-rncp-bc05
 SSH_KEY          := ~/.ssh/id_ed25519-scw
+COSIGN_KEY_FILE  := $(HOME)/.cosign/rncp-bc05/cosign.key
 
 # ══════════════════════════════════════════════════════════
 #  TERRAFORM — cluster
@@ -93,7 +94,7 @@ ansible-vault: ansible-inventory ansible-inventory-vault
 #  KUBERNETES — fondation cluster (GitOps, pas d'Ansible)
 # ══════════════════════════════════════════════════════════
 
-.PHONY: kubeconfig nodes k8s-secrets k8s-ccm k8s-bootstrap-argocd k8s-apps-secrets gitlab-init
+.PHONY: kubeconfig nodes k8s-secrets k8s-ccm k8s-bootstrap-argocd k8s-apps-secrets gitlab-init jenkins-credentials
 
 ## Récupérer le kubeconfig depuis le control-plane
 kubeconfig:
@@ -203,6 +204,55 @@ k8s-bootstrap-argocd: k8s-ccm
 gitlab-init:
 	KUBECONFIG=$(KUBECONFIG_FILE) ./scripts/gitlab-init.sh
 
+## Credentials Jenkins (Harbor, GitLab, Cosign) via kubernetes-credentials-provider
+## — Secrets K8s labellisés jenkins.io/credentials-type, découverts automatiquement
+## par Jenkins (namespace jenkins), aucune valeur en clair dans le repo, aucun
+## clic dans l'UI. Crée aussi gitlab-webhook-token (secret partagé avec le
+## webhook GitLab, cf. scripts/gitlab-init.sh — relancer `make gitlab-init`
+## après celle-ci pour que le webhook soit créé côté GitLab). IDEMPOTENT (comme
+## k8s-apps-secrets). Le token SonarQube reste une étape manuelle (cf.
+## docs/apps-stack.md) : pas de mot de passe admin à scripter avant le
+## changement forcé au premier login.
+jenkins-credentials:
+	@KUBECONFIG=$(KUBECONFIG_FILE) kubectl get secret harbor-credentials -n jenkins >/dev/null 2>&1 && \
+		echo "harbor-credentials existe déjà — inchangé" || \
+		{ HARBOR_PW=$$(KUBECONFIG=$(KUBECONFIG_FILE) kubectl get secret harbor-admin-password -n harbor -o jsonpath='{.data.HARBOR_ADMIN_PASSWORD}' | base64 -d); \
+		  KUBECONFIG=$(KUBECONFIG_FILE) kubectl create secret generic harbor-credentials -n jenkins \
+			--type=kubernetes.io/basic-auth \
+			--from-literal=username="admin" \
+			--from-literal=password="$$HARBOR_PW"; \
+		  KUBECONFIG=$(KUBECONFIG_FILE) kubectl label secret harbor-credentials -n jenkins jenkins.io/credentials-type=usernamePassword; \
+		  KUBECONFIG=$(KUBECONFIG_FILE) kubectl annotate secret harbor-credentials -n jenkins jenkins.io/credentials-description="Harbor admin (auto, make jenkins-credentials)"; \
+		  echo "harbor-credentials créé"; }
+	@KUBECONFIG=$(KUBECONFIG_FILE) kubectl get secret gitlab-credentials -n jenkins >/dev/null 2>&1 && \
+		echo "gitlab-credentials existe déjà — inchangé" || \
+		{ GITLAB_PW=$$(KUBECONFIG=$(KUBECONFIG_FILE) kubectl get secret gitlab-initial-root-password -n gitlab -o jsonpath='{.data.password}' | base64 -d); \
+		  KUBECONFIG=$(KUBECONFIG_FILE) kubectl create secret generic gitlab-credentials -n jenkins \
+			--type=kubernetes.io/basic-auth \
+			--from-literal=username="root" \
+			--from-literal=password="$$GITLAB_PW"; \
+		  KUBECONFIG=$(KUBECONFIG_FILE) kubectl label secret gitlab-credentials -n jenkins jenkins.io/credentials-type=usernamePassword; \
+		  KUBECONFIG=$(KUBECONFIG_FILE) kubectl annotate secret gitlab-credentials -n jenkins jenkins.io/credentials-description="GitLab root (auto, make jenkins-credentials)"; \
+		  echo "gitlab-credentials créé"; }
+	@KUBECONFIG=$(KUBECONFIG_FILE) kubectl get secret gitlab-webhook-token -n jenkins >/dev/null 2>&1 && \
+		echo "gitlab-webhook-token existe déjà — inchangé" || \
+		{ WEBHOOK_TOKEN=$$(openssl rand -hex 20); \
+		  KUBECONFIG=$(KUBECONFIG_FILE) kubectl create secret generic gitlab-webhook-token -n jenkins \
+			--from-literal=token="$$WEBHOOK_TOKEN"; \
+		  echo "gitlab-webhook-token créé"; }
+	@KUBECONFIG=$(KUBECONFIG_FILE) kubectl get secret cosign-private-key -n jenkins >/dev/null 2>&1 && \
+		echo "cosign-private-key existe déjà — inchangé" || \
+		{ test -f $(COSIGN_KEY_FILE) || { echo "COSIGN_KEY_FILE introuvable ($(COSIGN_KEY_FILE)) — voir docs/cosign.md"; exit 1; }; \
+		  KUBECONFIG=$(KUBECONFIG_FILE) kubectl create secret generic cosign-private-key -n jenkins \
+			--from-file=text=$(COSIGN_KEY_FILE); \
+		  KUBECONFIG=$(KUBECONFIG_FILE) kubectl label secret cosign-private-key -n jenkins jenkins.io/credentials-type=secretText; \
+		  KUBECONFIG=$(KUBECONFIG_FILE) kubectl annotate secret cosign-private-key -n jenkins jenkins.io/credentials-description="Clé privée Cosign (auto, make jenkins-credentials)"; \
+		  echo "cosign-private-key créé"; }
+	@echo ""
+	@echo "Reste à faire manuellement : générer un token SonarQube (admin -> My"
+	@echo "Account -> Security -> Generate Token) et créer le secret sonarqube-token"
+	@echo "(ns jenkins, type secretText) — cf. docs/apps-stack.md."
+
 # ══════════════════════════════════════════════════════════
 #  UTILITAIRES
 # ══════════════════════════════════════════════════════════
@@ -251,6 +301,7 @@ help:
 	@echo "    make k8s-bootstrap-argocd Bootstrap ArgoCD + App-of-Apps (prend le relais sur le reste)"
 	@echo "    make k8s-apps-secrets     Secrets admin stack applicative (Harbor, GitLab, SonarQube, Jenkins)"
 	@echo "    make gitlab-init          Bootstrap projet GitLab firmware-poc (Phase 4/6, cf. docs/firmware-poc.md)"
+	@echo "    make jenkins-credentials  Credentials Jenkins Harbor/GitLab (auto-découverte K8s, cf. docs/apps-stack.md)"
 	@echo ""
 	@echo "  UTILITAIRES"
 	@echo "    make clean                Nettoyer les fichiers temporaires"

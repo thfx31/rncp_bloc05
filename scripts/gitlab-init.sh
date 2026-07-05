@@ -8,10 +8,14 @@
 # - Crée le groupe et le projet (idempotent)
 # - Clone app/firmware-poc/ depuis GitHub (source de vérité) et le pousse sur
 #   GitLab comme repo autonome (un seul commit, pas d'historique GitHub)
+# - Configure le webhook GitLab -> Jenkins (idempotent, skip si le secret
+#   gitlab-webhook-token n'existe pas encore — cf. make jenkins-credentials)
 #
 # Usage :
 #   make gitlab-init
 #   (ou directement : ./scripts/gitlab-init.sh)
+#   Rejouable à volonté (idempotent) — utile pour ajouter le webhook une fois
+#   que 'make jenkins-credentials' a créé le token, sans revalider le reste.
 #
 # Prérequis :
 #   - KUBECONFIG configuré, cluster up, GitLab déployé (layer-01-apps Healthy)
@@ -205,6 +209,43 @@ push_firmware_code() {
     cd - > /dev/null
 }
 
+create_webhook() {
+    step "Configuring GitLab webhook -> Jenkins..."
+
+    local webhook_token
+    webhook_token=$(kubectl get secret gitlab-webhook-token -n jenkins -o jsonpath='{.data.token}' 2>/dev/null | base64 -d || true)
+
+    if [ -z "$webhook_token" ]; then
+        warn "Secret gitlab-webhook-token introuvable (ns jenkins) — webhook non configuré."
+        warn "Lancer 'make jenkins-credentials' puis relancer 'make gitlab-init'."
+        return
+    fi
+
+    local jenkins_hook_url="https://jenkins.k8s.yplank.fr/project/${GITLAB_PROJECT}"
+
+    local existing_hook_id
+    existing_hook_id=$(gitlab_api GET "/api/v4/projects/${GITLAB_PROJECT_ID}/hooks" | \
+        python3 -c "
+import sys, json
+hooks = json.load(sys.stdin)
+for h in hooks:
+    if h.get('url') == '${jenkins_hook_url}':
+        print(h['id'])
+        break
+" 2>/dev/null || true)
+
+    local hook_data
+    hook_data="{\"url\":\"${jenkins_hook_url}\",\"push_events\":true,\"token\":\"${webhook_token}\",\"enable_ssl_verification\":true}"
+
+    if [ -n "$existing_hook_id" ]; then
+        gitlab_api PUT "/api/v4/projects/${GITLAB_PROJECT_ID}/hooks/${existing_hook_id}" --data "$hook_data" > /dev/null
+        info "Webhook mis à jour (id=${existing_hook_id}) -> ${jenkins_hook_url}"
+    else
+        gitlab_api POST "/api/v4/projects/${GITLAB_PROJECT_ID}/hooks" --data "$hook_data" > /dev/null
+        info "Webhook créé -> ${jenkins_hook_url}"
+    fi
+}
+
 print_summary() {
     echo ""
     echo -e "${GREEN}══════════════════════════════════════════════${NC}"
@@ -231,4 +272,5 @@ create_api_token
 create_group
 create_project
 push_firmware_code
+create_webhook
 print_summary

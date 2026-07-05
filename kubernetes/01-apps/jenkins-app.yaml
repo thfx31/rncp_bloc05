@@ -49,6 +49,70 @@ spec:
             - blueocean:latest
             - pipeline-stage-view:latest
             - kubernetes-credentials-provider:latest
+            - job-dsl:latest
+          # Token partagé avec le webhook GitLab (cf. scripts/gitlab-init.sh) —
+          # injecté en variable d'env depuis le Secret gitlab-webhook-token
+          # (ns jenkins), jamais en clair dans ce fichier.
+          containerEnv:
+            - name: GITLAB_WEBHOOK_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: gitlab-webhook-token
+                  key: token
+          JCasC:
+            configScripts:
+              # Définit le job pipeline firmware-poc de façon déclarative
+              # (Job DSL) — survit à un rebuild complet, pas de clic UI.
+              firmware-poc-job: |
+                jobs:
+                  - script: >
+                      pipelineJob('firmware-poc') {
+                        definition {
+                          cpsScm {
+                            scm {
+                              git {
+                                remote {
+                                  url('https://gitlab.k8s.yplank.fr/poc-ci/firmware-poc.git')
+                                  credentials('gitlab-credentials')
+                                }
+                                branch('*/main')
+                              }
+                            }
+                            scriptPath('Jenkinsfile')
+                          }
+                        }
+                        triggers {
+                          gitlabPush {
+                            buildOnPushEvents(true)
+                            buildOnMergeRequestEvents(false)
+                            secretToken(System.getenv('GITLAB_WEBHOOK_TOKEN'))
+                          }
+                        }
+                      }
+              # Variables globales attendues par app/firmware-poc/Jenkinsfile
+              # (HARBOR_URL, SONAR_HOST_URL) — déclaratif, pas de saisie manuelle
+              # dans Manage Jenkins > System après un rebuild.
+              global-env-vars: |
+                jenkins:
+                  globalNodeProperties:
+                    - envVars:
+                        env:
+                          - key: "HARBOR_URL"
+                            value: "harbor.k8s.yplank.fr"
+                          - key: "SONAR_HOST_URL"
+                            value: "https://sonarqube.k8s.yplank.fr"
+              # Déclare le serveur SonarQube "sonarqube" utilisé par le stage
+              # SonarQube du Jenkinsfile. Le credential sonarqube-token doit
+              # exister (étape manuelle, cf. docs/apps-stack.md) sinon Jenkins
+              # démarre quand même mais l'installation reste non fonctionnelle
+              # tant que le Secret n'est pas créé.
+              sonarqube-server: |
+                unclassified:
+                  sonarGlobalConfiguration:
+                    installations:
+                      - name: "sonarqube"
+                        serverUrl: "https://sonarqube.k8s.yplank.fr"
+                        credentialsId: "sonarqube-token"
         persistence:
           enabled: true
           storageClass: local-path
