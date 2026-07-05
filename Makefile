@@ -93,7 +93,7 @@ ansible-vault: ansible-inventory ansible-inventory-vault
 #  KUBERNETES — fondation cluster (GitOps, pas d'Ansible)
 # ══════════════════════════════════════════════════════════
 
-.PHONY: kubeconfig nodes k8s-secrets k8s-ccm k8s-bootstrap-argocd k8s-apps-secrets
+.PHONY: kubeconfig nodes k8s-secrets k8s-ccm k8s-bootstrap-argocd k8s-apps-secrets gitlab-init
 
 ## Récupérer le kubeconfig depuis le control-plane
 kubeconfig:
@@ -127,42 +127,50 @@ k8s-secrets:
 		--dry-run=client -o yaml | KUBECONFIG=$(KUBECONFIG_FILE) kubectl apply -f -
 
 ## Créer les Secrets admin de la stack applicative (Harbor, GitLab, SonarQube,
-## Jenkins) — mots de passe générés aléatoirement, jamais committés, propres
-## à chaque rebuild (les namespaces n'existent pas encore, on les crée ici ;
-## ArgoCD les adoptera ensuite sans conflit)
+## Jenkins) — mots de passe générés aléatoirement, jamais committés.
+## IDEMPOTENT : ne touche jamais un secret déjà présent (kubectl create, pas
+## d'apply/overwrite). GitLab et Harbor ne lisent ce mot de passe qu'une seule
+## fois, à leur tout premier bootstrap (migration DB) — le regénérer après
+## coup désynchronise le secret de la vraie valeur en base, sans erreur
+## visible avant un login qui échoue. Donc relancer cette cible à tout moment
+## (ex. après un `kubectl delete secret` volontaire, ou pour compléter des
+## secrets manquants) ne casse plus rien : seuls les secrets absents sont créés.
 k8s-apps-secrets:
 	@for ns in harbor gitlab sonarqube jenkins; do \
 		KUBECONFIG=$(KUBECONFIG_FILE) kubectl create namespace $$ns --dry-run=client -o yaml | KUBECONFIG=$(KUBECONFIG_FILE) kubectl apply -f - ; \
 	done
-	$(eval HARBOR_PW := $(shell openssl rand -base64 24 | tr -d '=+/\n' | cut -c1-24))
-	$(eval HARBOR_SECRETKEY := $(shell openssl rand -base64 24 | tr -d '=+/\n' | cut -c1-16))
-	$(eval GITLAB_PW := $(shell openssl rand -base64 24 | tr -d '=+/\n' | cut -c1-24))
-	$(eval SONARQUBE_PASSCODE := $(shell openssl rand -base64 24 | tr -d '=+/\n' | cut -c1-24))
-	$(eval JENKINS_PW := $(shell openssl rand -base64 24 | tr -d '=+/\n' | cut -c1-24))
-	KUBECONFIG=$(KUBECONFIG_FILE) kubectl create secret generic harbor-admin-password \
-		-n harbor \
-		--from-literal=HARBOR_ADMIN_PASSWORD="$(HARBOR_PW)" \
-		--from-literal=secretKey="$(HARBOR_SECRETKEY)" \
-		--dry-run=client -o yaml | KUBECONFIG=$(KUBECONFIG_FILE) kubectl apply -f -
-	KUBECONFIG=$(KUBECONFIG_FILE) kubectl create secret generic gitlab-initial-root-password \
-		-n gitlab \
-		--from-literal=password="$(GITLAB_PW)" \
-		--dry-run=client -o yaml | KUBECONFIG=$(KUBECONFIG_FILE) kubectl apply -f -
-	KUBECONFIG=$(KUBECONFIG_FILE) kubectl create secret generic sonarqube-secrets \
-		-n sonarqube \
-		--from-literal=monitoringPasscode="$(SONARQUBE_PASSCODE)" \
-		--dry-run=client -o yaml | KUBECONFIG=$(KUBECONFIG_FILE) kubectl apply -f -
-	KUBECONFIG=$(KUBECONFIG_FILE) kubectl create secret generic jenkins-admin-secret \
-		-n jenkins \
-		--from-literal=jenkins-admin-user="admin" \
-		--from-literal=jenkins-admin-password="$(JENKINS_PW)" \
-		--dry-run=client -o yaml | KUBECONFIG=$(KUBECONFIG_FILE) kubectl apply -f -
+	@KUBECONFIG=$(KUBECONFIG_FILE) kubectl get secret harbor-admin-password -n harbor >/dev/null 2>&1 && \
+		echo "harbor-admin-password existe déjà — inchangé" || \
+		{ HARBOR_PW=$$(openssl rand -base64 24 | tr -d '=+/\n' | cut -c1-24); \
+		  HARBOR_SECRETKEY=$$(openssl rand -base64 24 | tr -d '=+/\n' | cut -c1-16); \
+		  KUBECONFIG=$(KUBECONFIG_FILE) kubectl create secret generic harbor-admin-password -n harbor \
+			--from-literal=HARBOR_ADMIN_PASSWORD="$$HARBOR_PW" \
+			--from-literal=secretKey="$$HARBOR_SECRETKEY"; \
+		  echo "Harbor (admin)   : $$HARBOR_PW"; }
+	@KUBECONFIG=$(KUBECONFIG_FILE) kubectl get secret gitlab-initial-root-password -n gitlab >/dev/null 2>&1 && \
+		echo "gitlab-initial-root-password existe déjà — inchangé" || \
+		{ GITLAB_PW=$$(openssl rand -base64 24 | tr -d '=+/\n' | cut -c1-24); \
+		  KUBECONFIG=$(KUBECONFIG_FILE) kubectl create secret generic gitlab-initial-root-password -n gitlab \
+			--from-literal=password="$$GITLAB_PW"; \
+		  echo "GitLab (root)    : $$GITLAB_PW"; }
+	@KUBECONFIG=$(KUBECONFIG_FILE) kubectl get secret sonarqube-secrets -n sonarqube >/dev/null 2>&1 && \
+		echo "sonarqube-secrets existe déjà — inchangé" || \
+		{ SONARQUBE_PASSCODE=$$(openssl rand -base64 24 | tr -d '=+/\n' | cut -c1-24); \
+		  KUBECONFIG=$(KUBECONFIG_FILE) kubectl create secret generic sonarqube-secrets -n sonarqube \
+			--from-literal=monitoringPasscode="$$SONARQUBE_PASSCODE"; \
+		  echo "SonarQube        : admin/admin (changement forcé au 1er login)"; }
+	@KUBECONFIG=$(KUBECONFIG_FILE) kubectl get secret jenkins-admin-secret -n jenkins >/dev/null 2>&1 && \
+		echo "jenkins-admin-secret existe déjà — inchangé" || \
+		{ JENKINS_PW=$$(openssl rand -base64 24 | tr -d '=+/\n' | cut -c1-24); \
+		  KUBECONFIG=$(KUBECONFIG_FILE) kubectl create secret generic jenkins-admin-secret -n jenkins \
+			--from-literal=jenkins-admin-user="admin" \
+			--from-literal=jenkins-admin-password="$$JENKINS_PW"; \
+		  echo "Jenkins (admin)  : $$JENKINS_PW"; }
 	@echo ""
-	@echo "Mots de passe générés — à noter, ils ne sont PAS committés :"
-	@echo "  Harbor (admin)   : $(HARBOR_PW)"
-	@echo "  GitLab (root)    : $(GITLAB_PW)"
-	@echo "  Jenkins (admin)  : $(JENKINS_PW)"
-	@echo "  SonarQube        : admin/admin (changement forcé au 1er login)"
+	@echo "Mots de passe (générés ci-dessus, ou déjà en place) — jamais committés."
+	@echo "Pour forcer une rotation volontaire d'un secret : kubectl delete secret <nom> -n <ns>"
+	@echo "puis relancer 'make k8s-apps-secrets' (et resynchroniser l'app côté GitLab/Harbor si"
+	@echo "elle a déjà consommé l'ancien, cf. docs/apps-stack.md § dépannage)."
 
 ## Déployer le CCM Scaleway — OBLIGATOIRE avant ArgoCD. RKE2 (cloud-provider-name:
 ## external) tainte tous les nodes node.cloudprovider.kubernetes.io/uninitialized
@@ -187,6 +195,13 @@ k8s-bootstrap-argocd: k8s-ccm
 	KUBECONFIG=$(KUBECONFIG_FILE) kubectl apply -f kubernetes/argocd-manager/root-app.yaml
 	@echo "ArgoCD admin password :"
 	@KUBECONFIG=$(KUBECONFIG_FILE) kubectl -n argocd get secret argocd-initial-admin-secret -o jsonpath="{.data.password}" | base64 -d; echo
+
+## Bootstrap du projet GitLab firmware-poc (Phase 4/6) — crée le groupe/projet
+## via l'API GitLab (idempotent) et pousse app/firmware-poc/ (source de vérité
+## sur GitHub) comme repo autonome. À lancer une fois que GitLab est Healthy
+## (make k8s-apps-secrets déjà exécuté). Voir scripts/gitlab-init.sh.
+gitlab-init:
+	KUBECONFIG=$(KUBECONFIG_FILE) ./scripts/gitlab-init.sh
 
 # ══════════════════════════════════════════════════════════
 #  UTILITAIRES
@@ -235,6 +250,7 @@ help:
 	@echo "    make k8s-ccm              Déployer le CCM Scaleway (lève le taint uninitialized, requis avant ArgoCD)"
 	@echo "    make k8s-bootstrap-argocd Bootstrap ArgoCD + App-of-Apps (prend le relais sur le reste)"
 	@echo "    make k8s-apps-secrets     Secrets admin stack applicative (Harbor, GitLab, SonarQube, Jenkins)"
+	@echo "    make gitlab-init          Bootstrap projet GitLab firmware-poc (Phase 4/6, cf. docs/firmware-poc.md)"
 	@echo ""
 	@echo "  UTILITAIRES"
 	@echo "    make clean                Nettoyer les fichiers temporaires"
