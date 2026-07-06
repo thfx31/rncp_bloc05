@@ -1,0 +1,77 @@
+# Le Secret "grafana-admin-secret" (namespace monitoring, clés admin-user et
+# admin-password) n'est PAS dans ce repo — créé via `make k8s-monitoring-secrets`,
+# jamais committé.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: kube-prometheus-stack
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://prometheus-community.github.io/helm-charts
+    chart: kube-prometheus-stack
+    targetRevision: "87.10.1"
+    helm:
+      values: |
+        # Alertmanager désactivé — pas de canal de notification à configurer
+        # pour un POC de démo, aucune alerte n'est montrée
+        alertmanager:
+          enabled: false
+
+        prometheus:
+          prometheusSpec:
+            retention: 12h
+            resources:
+              requests: { cpu: 200m, memory: 512Mi }
+              limits: { memory: 1Gi }
+            storageSpec:
+              volumeClaimTemplate:
+                spec:
+                  storageClassName: local-path
+                  accessModes: ["ReadWriteOnce"]
+                  resources:
+                    requests:
+                      storage: 5Gi
+            # worker-02 (SonarQube + Jenkins controller) — pas worker-01, déjà
+            # chargé par Harbor/GitLab/agents Jenkins
+            nodeSelector:
+              kubernetes.io/hostname: rncp-bc05-worker-02
+
+        grafana:
+          admin:
+            existingSecret: grafana-admin-secret
+            userKey: admin-user
+            passwordKey: admin-password
+          nodeSelector:
+            kubernetes.io/hostname: rncp-bc05-worker-02
+          resources:
+            requests: { cpu: 100m, memory: 256Mi }
+            limits: { memory: 512Mi }
+          ingress:
+            enabled: true
+            ingressClassName: nginx
+            hosts:
+              - grafana.k8s.yplank.fr
+            tls:
+              - secretName: grafana-tls
+                hosts:
+                  - grafana.k8s.yplank.fr
+            annotations:
+              cert-manager.io/cluster-issuer: letsencrypt-prod
+          # Pas de déclaration manuelle de datasource Loki ici : le chart
+          # loki-stack déclare déjà sa propre ConfigMap découverte par le
+          # sidecar Grafana (cf. loki-stack-app.yaml, loki.isDefault: false)
+
+        # Composants lightweight, laissés par défaut (DaemonSet node-exporter,
+        # kube-state-metrics) — pas de nodeSelector, doivent tourner partout
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: monitoring
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true

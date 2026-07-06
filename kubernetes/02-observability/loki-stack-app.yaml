@@ -1,0 +1,51 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: loki-stack
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://grafana.github.io/helm-charts
+    chart: loki-stack
+    targetRevision: "2.10.3"
+    helm:
+      values: |
+        # Grafana désactivé dans ce chart — celui de kube-prometheus-stack
+        # sert de dashboard unique (datasource Loki ajoutée dedans, cf.
+        # kube-prometheus-stack-app.yaml)
+        grafana:
+          enabled: false
+
+        loki:
+          # Le chart déclare automatiquement une datasource Grafana pour Loki
+          # (ConfigMap découverte par le sidecar) — isDefault: true par défaut
+          # dans le chart, ce qui entre en conflit avec la datasource
+          # Prometheus déjà par défaut côté kube-prometheus-stack.
+          isDefault: false
+          persistence:
+            enabled: true
+            storageClassName: local-path
+            size: 5Gi
+          resources:
+            requests: { cpu: 100m, memory: 256Mi }
+            limits: { memory: 512Mi }
+          nodeSelector:
+            kubernetes.io/hostname: rncp-bc05-worker-02
+
+        # DaemonSet — pas de nodeSelector, doit tourner sur tous les nodes
+        # pour collecter les logs de chaque worker
+        promtail:
+          resources:
+            requests: { cpu: 50m, memory: 64Mi }
+            limits: { memory: 128Mi }
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: monitoring
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true

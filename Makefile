@@ -94,7 +94,7 @@ ansible-vault: ansible-inventory ansible-inventory-vault
 #  KUBERNETES — fondation cluster (GitOps, pas d'Ansible)
 # ══════════════════════════════════════════════════════════
 
-.PHONY: kubeconfig nodes k8s-secrets k8s-ccm k8s-bootstrap-argocd k8s-apps-secrets gitlab-init harbor-init jenkins-credentials
+.PHONY: kubeconfig nodes k8s-secrets k8s-ccm k8s-bootstrap-argocd k8s-apps-secrets k8s-monitoring-secrets gitlab-init harbor-init jenkins-credentials
 
 ## Récupérer le kubeconfig depuis le control-plane
 kubeconfig:
@@ -172,6 +172,18 @@ k8s-apps-secrets:
 	@echo "Pour forcer une rotation volontaire d'un secret : kubectl delete secret <nom> -n <ns>"
 	@echo "puis relancer 'make k8s-apps-secrets' (et resynchroniser l'app côté GitLab/Harbor si"
 	@echo "elle a déjà consommé l'ancien, cf. docs/apps-stack.md § dépannage)."
+
+## Créer le Secret admin Grafana (Phase 5 — observabilité). IDEMPOTENT, même
+## pattern que k8s-apps-secrets.
+k8s-monitoring-secrets:
+	@KUBECONFIG=$(KUBECONFIG_FILE) kubectl create namespace monitoring --dry-run=client -o yaml | KUBECONFIG=$(KUBECONFIG_FILE) kubectl apply -f -
+	@KUBECONFIG=$(KUBECONFIG_FILE) kubectl get secret grafana-admin-secret -n monitoring >/dev/null 2>&1 && \
+		echo "grafana-admin-secret existe déjà — inchangé" || \
+		{ GRAFANA_PW=$$(openssl rand -base64 24 | tr -d '=+/\n' | cut -c1-24); \
+		  KUBECONFIG=$(KUBECONFIG_FILE) kubectl create secret generic grafana-admin-secret -n monitoring \
+			--from-literal=admin-user="admin" \
+			--from-literal=admin-password="$$GRAFANA_PW"; \
+		  echo "Grafana (admin)  : $$GRAFANA_PW"; }
 
 ## Déployer le CCM Scaleway — OBLIGATOIRE avant ArgoCD. RKE2 (cloud-provider-name:
 ## external) tainte tous les nodes node.cloudprovider.kubernetes.io/uninitialized
@@ -315,6 +327,7 @@ help:
 	@echo "    make k8s-ccm              Déployer le CCM Scaleway (lève le taint uninitialized, requis avant ArgoCD)"
 	@echo "    make k8s-bootstrap-argocd Bootstrap ArgoCD + App-of-Apps (prend le relais sur le reste)"
 	@echo "    make k8s-apps-secrets     Secrets admin stack applicative (Harbor, GitLab, SonarQube, Jenkins)"
+	@echo "    make k8s-monitoring-secrets Secret admin Grafana (Phase 5, cf. docs/monitoring.md)"
 	@echo "    make gitlab-init          Bootstrap projet GitLab firmware-poc (Phase 4/6, cf. docs/firmware-poc.md)"
 	@echo "    make harbor-init          Créer le projet Harbor poc-ci (idempotent, requis avant tout push)"
 	@echo "    make jenkins-credentials  Credentials Jenkins Harbor/GitLab (auto-découverte K8s, cf. docs/apps-stack.md)"
