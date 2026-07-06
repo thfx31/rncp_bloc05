@@ -139,6 +139,15 @@ kubectl get application -n argocd   # attendre Synced/Healthy sur harbor/gitlab/
 Rien à ajouter côté DNS — le wildcard `*.k8s.yplank.fr` (étape 6) couvre déjà
 ces 4 sous-domaines.
 
+Mots de passe (générés une seule fois, affichés en sortie de
+`make k8s-apps-secrets` — si perdus, récupérables tant que le cluster tourne,
+détail complet des 4 apps dans `docs/apps-stack.md`) :
+
+```bash
+# GitLab (login root)
+kubectl get secret gitlab-initial-root-password -n gitlab -o jsonpath='{.data.password}' | base64 -d; echo
+```
+
 ## 9. Pipeline sécurisé (Phase 4/6) — firmware-poc
 
 Détail complet : `docs/apps-stack.md` (credentials/webhook) et
