@@ -34,3 +34,10 @@ Tableau vivant, complété à chaque décision (cf. CONTEXT.md).
 | Mode de signature | Clé statique (`cosign generate-key-pair`), pas keyless/Sigstore | Pas de dépendance à la joignabilité de `fulcio.sigstore.dev`/`rekor.sigstore.dev` ni à un OIDC issuer externe le jour de la soutenance — démo autonome et fiable |
 | Passphrase clé privée | Vide (`COSIGN_PASSWORD=""`) | Permet une signature non-interactive depuis un pipeline Jenkins ; clé privée jamais committée, protégée uniquement par son emplacement hors repo (`~/.cosign/rncp-bc05/`) et les permissions fichier |
 | Stockage clé privée | Hors repo (poste opérateur), pas dans Vault | Évite de faire dépendre la capacité de signer d'un Vault unsealed ; piste prod = Vault Transit KMS (`cosign sign --key hashivault://...`), non implémentée ici — cf. `docs/cosign.md` |
+
+## Sécurité (Phase 4) — Checkov/tfsec (IaC)
+
+| Aspect | Choix POC | Justification |
+|---|---|---|
+| Sévérité au démarrage | `soft_fail: true` (tfsec, Checkov, `continue-on-error` pour ansible-lint) | Premier scan jamais fait sur ce repo — évite le bruit des faux positifs le temps de les trier. Bascule en hard-fail prévue avant la soutenance |
+| Portée | GitHub Actions sur `terraform/`/`ansible/` uniquement, distinct du Checkov Jenkins (scan des Dockerfiles applicatifs) | Deux couches de scan séparées : IaC infra (GitHub, avant `terraform apply`) vs image applicative (GitLab/Jenkins, avant `docker push`) — cf. `docs/checkov-tfsec.md` |

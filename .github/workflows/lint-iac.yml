@@ -1,0 +1,67 @@
+name: lint-iac
+
+on:
+  pull_request:
+    paths: ["terraform/**", "ansible/**"]
+  push:
+    branches: [main]
+    paths: ["terraform/**", "ansible/**"]
+
+jobs:
+  terraform:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: hashicorp/setup-terraform@v3
+
+      - name: terraform fmt/validate (cluster)
+        working-directory: terraform/cluster
+        run: |
+          terraform init -backend=false
+          terraform fmt -check -recursive
+          terraform validate
+
+      - name: terraform fmt/validate (vault)
+        working-directory: terraform/vault
+        run: |
+          terraform init -backend=false
+          terraform fmt -check -recursive
+          terraform validate
+
+      - name: tfsec
+        uses: aquasecurity/tfsec-action@v1.0.3
+        with:
+          working_directory: terraform
+          soft_fail: true
+
+      - name: Checkov (terraform)
+        uses: bridgecrewio/checkov-action@v12
+        with:
+          directory: terraform
+          framework: terraform
+          soft_fail: true
+
+  ansible:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: ansible-lint
+        # soft_fail au départ, comme tfsec/checkov ci-dessus (cf. poc-vs-prod.md)
+        # — le temps de trier les faux positifs avant de passer en hard-fail
+        continue-on-error: true
+        run: |
+          pip install ansible-lint
+          ansible-lint ansible/
+
+      - name: Checkov (ansible)
+        uses: bridgecrewio/checkov-action@v12
+        with:
+          directory: ansible
+          framework: ansible
+          soft_fail: true
