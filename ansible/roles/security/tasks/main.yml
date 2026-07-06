@@ -60,6 +60,7 @@
     - 10250/tcp        # Kubelet API
     - 30000-32767/tcp  # NodePort range
     - 3260/tcp         # iSCSI pour Cinder CSI
+    - 9100/tcp         # node-exporter (Prometheus, Phase 5 — observabilité)
 
 # -- Ports spécifiques au control plane --
 - name: Ouvrir les ports control plane
