@@ -6,6 +6,7 @@ on:
   push:
     branches: [main]
     paths: ["terraform/**", "ansible/**"]
+  workflow_dispatch: {}
 
 jobs:
   terraform:
@@ -29,18 +30,35 @@ jobs:
           terraform fmt -check -recursive
           terraform validate
 
+      - name: Installer tfsec
+        run: |
+          curl -sL https://raw.githubusercontent.com/aquasecurity/tfsec/master/scripts/install_linux.sh | bash
+
       - name: tfsec
-        uses: aquasecurity/tfsec-action@v1.0.3
-        with:
-          working_directory: terraform
-          soft_fail: true
+        # soft_fail au départ (cf. poc-vs-prod.md) — le temps de trier les
+        # faux positifs avant de passer en hard-fail
+        continue-on-error: true
+        run: |
+          tfsec terraform --format json --out tfsec-report.json
+          tfsec terraform
+
+      - name: Installer Checkov
+        run: pip install checkov
 
       - name: Checkov (terraform)
-        uses: bridgecrewio/checkov-action@v12
+        continue-on-error: true
+        run: |
+          checkov --compact --directory terraform --framework terraform \
+            --output cli --output json \
+            --output-file-path console,checkov-report-terraform.json
+
+      - name: Archiver les rapports (terraform)
+        uses: actions/upload-artifact@v4
         with:
-          directory: terraform
-          framework: terraform
-          soft_fail: true
+          name: lint-iac-terraform-reports
+          path: |
+            tfsec-report.json
+            checkov-report-terraform.json
 
   ansible:
     runs-on: ubuntu-latest
@@ -57,11 +75,22 @@ jobs:
         continue-on-error: true
         run: |
           pip install ansible-lint
-          ansible-lint ansible/
+          ansible-lint --parseable ansible/ | tee ansible-lint-report.txt
+
+      - name: Installer Checkov
+        run: pip install checkov
 
       - name: Checkov (ansible)
-        uses: bridgecrewio/checkov-action@v12
+        continue-on-error: true
+        run: |
+          checkov --compact --directory ansible --framework ansible \
+            --output cli --output json \
+            --output-file-path console,checkov-report-ansible.json
+
+      - name: Archiver les rapports (ansible)
+        uses: actions/upload-artifact@v4
         with:
-          directory: ansible
-          framework: ansible
-          soft_fail: true
+          name: lint-iac-ansible-reports
+          path: |
+            ansible-lint-report.txt
+            checkov-report-ansible.json
