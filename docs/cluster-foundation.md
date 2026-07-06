@@ -13,7 +13,7 @@ cluster RKE2 up** (Phase 1). Tout le reste est déclaratif, dans
 `kubernetes.core.helm`, gestion de versions de charts dans des `defaults/`)
 réinvente ce qu'ArgoCD sait déjà faire nativement (support Helm intégré, sync
 waves pour l'ordre, self-heal). Ça ajoutait de la complexité sans valeur pour
-un POC de démo 5 minutes — cf. `CONTEXT.md`. Un dossier de manifestes +
+un POC de démo 5 minutes — cf. `docs/poc-vs-prod.md`. Un dossier de manifestes +
 App-of-Apps est plus court, plus lisible, et plus proche de ce que fera
 réellement tourner le cluster en continu (ArgoCD, pas Ansible).
 
@@ -37,7 +37,7 @@ kubernetes/
 **Ajouté après coup** : `local-path-provisioner` — RKE2 ne bundle aucun
 provisioner de stockage par défaut dans cette configuration (découvert au
 moment d'attaquer la Phase 3, cf. `docs/apps-stack.md`), alors que
-`CONTEXT.md` supposait le contraire. Sans lui, aucun PVC ne peut se lier.
+on supposait le contraire au départ. Sans lui, aucun PVC ne peut se lier.
 
 ## Séquence de bootstrap (`make`)
 

@@ -51,22 +51,7 @@ Pas besoin de `SCW_DEFAULT_REGION`/`SCW_DEFAULT_ZONE` : chaque ressource fixe
 (`fr-par` / `fr-par-2` dans `terraform/cluster/variables.tf` et
 `terraform/vault/variables.tf`).
 
-## 2. Variables futures pour la CI (GitHub Actions) — à faire plus tard, pas maintenant
-
-Mêmes valeurs, mais stockées comme **secrets GitHub Actions** sous ces noms
-(le mapping vers `AWS_ACCESS_KEY_ID` etc. se fait dans le YAML du workflow,
-pas dans le code Terraform) :
-
-| Secret GitHub | Valeur |
-|---|---|
-| `SCW_ACCESS_KEY` | = clé API IAM |
-| `SCW_SECRET_KEY` | = clé API IAM |
-| `SCW_DEFAULT_PROJECT_ID` | = ID projet |
-| `TF_BACKEND_ACCESS_KEY` | = même valeur que `SCW_ACCESS_KEY` |
-| `TF_BACKEND_SECRET_KEY` | = même valeur que `SCW_SECRET_KEY` |
-| `SSH_PRIVATE_KEY` | clé privée correspondant à la clé publique ajoutée au projet Scaleway |
-
-## 3. Ordre de déploiement Terraform
+## 2. Ordre de déploiement Terraform
 
 - [x] `terraform/cluster/` : `terraform init` puis `terraform plan` (contrôle),
       puis `terraform apply` — crée le réseau privé, control-plane, workers
@@ -80,7 +65,7 @@ rejouer **toute** la séquence ci-dessous dans l'ordre (cluster → vault → An
 → init/unseal Vault) — rien n'est persistant entre deux sessions, y compris le
 storage raft de Vault (cf. `docs/vault.md`, section "Rebuild complet à chaque session").
 
-## 4. Ansible — bootstrap RKE2
+## 3. Ansible — bootstrap RKE2
 
 - [x] Rôle Ansible RKE2 (remplace `kubeadm`) — bootstrap OS, install
       control-plane/agents, récupération kubeconfig
@@ -104,7 +89,7 @@ make nodes            # kubectl get nodes -o wide
   enregistrée dans le projet Scaleway) ; corrigé dans `ansible.cfg` et
   `inventory.py`
 
-## 5. Ansible — Vault
+## 4. Ansible — Vault
 
 - [x] Rôle Ansible Vault — install binaire (repo RPM HashiCorp), TLS auto-signée,
       config raft single-node, firewalld, service démarré
@@ -112,7 +97,6 @@ make nodes            # kubectl get nodes -o wide
       volontairement. **À refaire à chaque recréation de la VM Vault** (destroy/
       recreate en fin/début de session) puisque le storage raft ne survit pas à
       l'instance
-- [ ] Intégration Jenkins via auth K8s — Phase 4
 
 Commandes :
 
@@ -130,7 +114,7 @@ début de `tls.yml`.
 Statut confirmé : Vault tourne (scellé, non initialisé — attendu, voir `docs/vault.md`
 pour la suite manuelle).
 
-## 6. Fondation cluster (Phase 2) — GitOps, pas d'Ansible
+## 5. Fondation cluster (Phase 2) — GitOps, pas d'Ansible
 
 Ansible s'arrête après un cluster RKE2 up (étape 4). CCM Scaleway, Hubble,
 ingress-nginx, cert-manager et ArgoCD sont gérés en GitOps — voir
@@ -145,7 +129,7 @@ make k8s-bootstrap-argocd  # ArgoCD + App-of-Apps — prend le relais sur le res
 Repo GitHub **public** (`rncp_bloc05`) — ArgoCD clone en HTTPS anonyme, aucune
 credential à enregistrer.
 
-## 7. Stack applicative (Phase 3) — Harbor, GitLab, SonarQube, Jenkins
+## 6. Stack applicative (Phase 3) — Harbor, GitLab, SonarQube, Jenkins
 
 **Étape à ne pas oublier** — sans elle, Harbor/SonarQube/Jenkins restent bloqués
 (`ContainerCreating`/`CreateContainerConfigError`/`Init`) faute de secret admin :
@@ -157,6 +141,7 @@ make k8s-apps-secrets   # Secrets admin Harbor/GitLab/Jenkins (générés, affic
 `layer-01-apps` (sync-wave 1) prend le relais tout seul ensuite. Détail complet :
 `docs/apps-stack.md` et `docs/rebuild-runbook.md`.
 
-## 8. Phases suivantes
+## 7. Phases suivantes
 
-Voir le découpage complet Phase 4 → 7 dans `CONTEXT.md`.
+Voir `docs/architecture.md` (vue d'ensemble), `docs/poc-vs-prod.md` (arbitrages)
+et `docs/evolutions-possibles.md` (pistes non implémentées).

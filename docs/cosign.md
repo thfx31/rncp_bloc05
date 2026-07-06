@@ -29,9 +29,10 @@ POC (aurait fait dépendre la capacité de signer d'un Vault unsealed).
   poste opérateur — **jamais committée**. Passphrase vide (`COSIGN_PASSWORD=""`) pour
   permettre une signature non-interactive depuis un pipeline Jenkins.
 - **Clé publique** (`cosign.pub`) : committée dans
-  `kubernetes/01-apps/cosign-public-key/cosign.pub` — ce n'est pas un secret, c'est elle
-  que la policy Kyverno (`verifyImages`) ira lire pour vérifier les signatures à
-  l'admission.
+  `kubernetes/01-apps/cosign-public-key/cosign.pub` — ce n'est pas un secret. Elle
+  serait utilisée par une policy Kyverno (`verifyImages`) pour vérifier les
+  signatures à l'admission — piste envisagée, non implémentée dans ce POC,
+  cf. `docs/evolutions-possibles.md`.
 
 ## Commandes
 
@@ -47,9 +48,10 @@ cosign verify --key cosign.pub harbor.k8s.yplank.fr/<project>/<image>:<tag>
 ```
 
 `cosign verify` échoue explicitement (exit non-zero, message clair) si l'image n'a jamais
-été signée, ou si la signature ne correspond pas à la clé publique fournie — c'est ce
-comportement que Kyverno réutilise pour bloquer un déploiement à l'admission (cf.
-`docs/kyverno.md`, à venir).
+été signée, ou si la signature ne correspond pas à la clé publique fournie — un
+Kyverno `ClusterPolicy verifyImages` réutiliserait ce même comportement pour
+bloquer un déploiement à l'admission (piste non implémentée, cf.
+`docs/evolutions-possibles.md`).
 
 ## Arbitrage POC vs prod
 

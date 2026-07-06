@@ -14,7 +14,7 @@ Résultat après `make ansible-vault` : Vault tourne, **scellé et non initialis
 ## Ce que le rôle NE fait PAS (volontairement)
 
 `vault operator init` et `vault operator unseal` ne sont **pas automatisés** —
-limite POC assumée (cf. `CONTEXT.md`), pour ne pas faire transiter les unseal
+limite POC assumée (cf. `docs/poc-vs-prod.md`), pour ne pas faire transiter les unseal
 keys / le root token par du code Ansible versionné ou des logs de playbook.
 À faire à la main, une seule fois :
 
@@ -80,7 +80,9 @@ utiliserait l'auto-unseal (KMS cloud, Transit d'un autre Vault, ou HSM) —
 hors scope volontaire pour un POC 5 minutes de démo, où Vault est démarré à
 l'avance et reste unsealed pendant la soutenance.
 
-## À venir (Phase 4)
+## Non implémenté dans ce POC
 
-- Intégration Jenkins via auth K8s (un secret ciblé, ex. creds Harbor)
-- ESO (External Secrets Operator) — pont Vault → K8s Secrets
+Auth K8s (intégration Jenkins dynamique) et ESO (pont Vault → K8s Secrets)
+étaient envisagés puis abandonnés par arbitrage risque/valeur — cf.
+`docs/evolutions-possibles.md`. Vault reste une VM externe avec des secrets
+KV gérés manuellement dans ce POC.

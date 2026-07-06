@@ -14,7 +14,7 @@ Le contexte réel (alternance dans une équipe infrastructure du secteur
 spatial/satellite, support à des développeurs de logiciel embarqué C) ne
 peut pas être démontré avec du vrai code ou de vrais outils — confidentialité
 industrielle. Ce cas d'usage reproduit fidèlement le problème réel sans
-exposer quoi que ce soit de sensible : voir `CONTEXT.md`.
+exposer quoi que ce soit de sensible : voir `docs/architecture.md`.
 
 ## Pourquoi deux Dockerfiles (legacy / modern)
 

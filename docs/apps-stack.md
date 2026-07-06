@@ -148,7 +148,7 @@ reçoit encore des mises à jour de sécurité sur l'image applicative (dernièr
 `9.11.7` / GitLab `v18.11.6`), juste pas de nouvelles fonctionnalités de chart.
 
 **SonarQube** — analyse statique du code C, déjà utilisé en prod chez le
-client (cf. `CONTEXT.md`). Edition `community`.
+client (cf. `docs/architecture.md`). Edition `community`.
 
 **Jenkins** — controller + agents dynamiques (plugin `kubernetes`). Plugins
 givrés au `latest` (pas de version pinnée comme les charts — acceptable pour

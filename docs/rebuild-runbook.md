@@ -121,7 +121,23 @@ Affiché en sortie de `make k8s-bootstrap-argocd`, ou à défaut :
 kubectl -n argocd get secret argocd-initial-admin-secret -o jsonpath="{.data.password}" | base64 -d; echo
 ```
 
-## 8. Stack applicative (Phase 3) — Harbor, GitLab, SonarQube, Jenkins
+## 8. Observabilité (Phase 5) — Prometheus/Grafana + Loki/Promtail
+
+Détail complet : `docs/monitoring.md`.
+
+```bash
+make k8s-monitoring-secrets   # Secret admin Grafana (généré, affiché une fois)
+```
+
+`layer-02-observability` (sync-wave 2) prend le relais tout seul ensuite.
+Rien à ajouter côté DNS — le wildcard `*.k8s.yplank.fr` (étape 6) couvre déjà
+`grafana.k8s.yplank.fr`.
+
+```bash
+kubectl get application -n argocd   # attendre Synced/Healthy sur kube-prometheus-stack/loki-stack
+```
+
+## 9. Stack applicative (Phase 3) — Harbor, GitLab, SonarQube, Jenkins
 
 Détail complet : `docs/apps-stack.md`.
 
@@ -148,7 +164,7 @@ détail complet des 4 apps dans `docs/apps-stack.md`) :
 kubectl get secret gitlab-initial-root-password -n gitlab -o jsonpath='{.data.password}' | base64 -d; echo
 ```
 
-## 9. Pipeline sécurisé (Phase 4/6) — firmware-poc
+## 10. Pipeline sécurisé (Phase 4/6) — firmware-poc
 
 Détail complet : `docs/apps-stack.md` (credentials/webhook) et
 `docs/cosign.md` (clé de signature).
@@ -188,7 +204,7 @@ Le webhook GitLab déclenche automatiquement `VARIANT=legacy` à chaque push
 sur le projet `firmware-poc`. `VARIANT=modern` (Ubuntu 22.04/gcc-12) se
 lance uniquement à la main via **Build with Parameters** — démontre que les
 deux OS tournent comme agents Kubernetes dynamiques sur le même cluster,
-sans node Jenkins dédié par OS (cf. `CONTEXT.md`, problématique de départ).
+sans node Jenkins dédié par OS (cf. `docs/architecture.md`, problématique de départ).
 
 **Piège connu** : après un push touchant `kubernetes/01-apps/*.yaml` (ex.
 nouveau plugin Jenkins, nouveau manifeste RBAC), rafraîchir/sync l'app
@@ -200,7 +216,7 @@ l'app enfant, qui se resync ensuite toute seule (`selfHeal`). Vérifier
 `kubectl get application layer-01-apps -n argocd -o jsonpath='{.status.sync.revision}'`
 correspond au dernier commit avant de lancer 3-4 ci-dessus.
 
-## 10. Nettoyage en fin de session (destroy)
+## 11. Nettoyage en fin de session (destroy)
 
 ```bash
 make tf-vault-destroy

@@ -31,3 +31,14 @@ avant la soutenance, une fois le bruit éliminé.
 Si un check est explicitement ignoré (`--skip-check` tfsec/Checkov, ou
 `# noqa` ansible-lint), un commentaire dans le code doit expliquer pourquoi
 — cf. `docs/poc-vs-prod.md` pour l'arbitrage général.
+
+## Artefacts
+
+Chaque run produit des rapports téléchargeables (onglet Actions du run,
+section Artifacts) :
+- `lint-iac-terraform-reports` : `tfsec-report.json`, `checkov-report-terraform.json`
+- `lint-iac-ansible-reports` : `ansible-lint-report.txt`, `checkov-report-ansible.json`
+
+Outils installés en CLI direct dans le workflow (pas via les actions
+GitHub tierces `tfsec-action`/`checkov-action`) pour garder le contrôle exact
+du format de sortie et du chemin du fichier généré.
