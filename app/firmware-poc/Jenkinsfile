@@ -122,13 +122,6 @@ spec:
         BUILD_OUTPUT    = "build/firmware.elf"
 
         SONAR_PROJECT_KEY = "${params.VARIANT == 'modern' ? 'firmware-poc-modern' : 'firmware-poc'}"
-
-        // Ubuntu 22.04 (modern) a encore des CVE sans correctif dispo au
-        // moment du build — on les ignore pour ce variant afin de ne bloquer
-        // que sur du réellement actionnable. Ubuntu 18.04 (legacy, EOL) reste
-        // scanné strictement : c'est justement l'argument de démo (l'image
-        // legacy accumule des CVE non corrigeables, la modern beaucoup moins).
-        TRIVY_EXTRA_ARGS = "${params.VARIANT == 'modern' ? '--ignore-unfixed' : ''}"
     }
 
     options {
@@ -266,7 +259,7 @@ spec:
                                 --exit-code 0 \
                                 --severity HIGH,CRITICAL \
                                 --no-progress \
-                                ${TRIVY_EXTRA_ARGS} \
+                                ${params.VARIANT == 'modern' ? '--ignore-unfixed' : ''} \
                                 --format json \
                                 --output trivy-report.json \
                                 ${env.FULL_IMAGE_LATEST}
@@ -279,7 +272,7 @@ spec:
                                     --exit-code 1 \
                                     --severity HIGH,CRITICAL \
                                     --no-progress \
-                                    ${TRIVY_EXTRA_ARGS} \
+                                    ${params.VARIANT == 'modern' ? '--ignore-unfixed' : ''} \
                                     --format table \
                                     ${env.FULL_IMAGE_LATEST}
                             """,
