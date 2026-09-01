@@ -36,8 +36,8 @@
 pipeline {
 
     parameters {
-        choice(name: "VARIANT", choices: ["legacy", "modern"],
-               description: "legacy = Ubuntu 18.04/gcc-7 (défaut, webhook) - modern = Ubuntu 22.04/gcc-12")
+        choice(name: "VARIANT", choices: ["legacy", "modern", "broken"],
+               description: "legacy = Ubuntu 18.04/gcc-7 (défaut, webhook) - modern = Ubuntu 22.04/gcc-12 - broken = Dockerfile volontairement non conforme (démo Checkov FAIL)")
     }
 
     agent {
@@ -126,7 +126,7 @@ spec:
         // HARBOR_URL et SONAR_HOST_URL sont définis dans Jenkins :
         // Manage Jenkins → System → Global properties → Environment variables
         HARBOR_PROJECT  = "poc-ci"
-        IMAGE_NAME      = "${params.VARIANT == 'modern' ? 'build-modern-ubuntu22' : 'build-legacy-ubuntu18'}"
+        IMAGE_NAME      = "${params.VARIANT == 'modern' ? 'build-modern-ubuntu22' : (params.VARIANT == 'broken' ? 'build-broken-demo' : 'build-legacy-ubuntu18')}"
         FULL_IMAGE      = "${HARBOR_URL}/${HARBOR_PROJECT}/${IMAGE_NAME}"
 
         // Dockerfile.legacy / Dockerfile.modern - le nom du paramètre matche

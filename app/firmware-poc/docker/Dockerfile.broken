@@ -1,0 +1,56 @@
+# =============================================================================
+# build-broken-demo
+#
+# Variante intentionnellement NON conforme - sert uniquement de fixture de
+# démonstration pour le stage "Checkov scan" du Jenkinsfile (preuve que le
+# pipeline bloque bien avant tout build/push en cas de mauvaise pratique).
+#
+# Base identique à Dockerfile.legacy, moins les 2 corrections apportées par
+# les commits fd09587/2e4f14e ("fix 2 findings Checkov") :
+#   - CKV_DOCKER_2 : pas de HEALTHCHECK
+#   - CKV_DOCKER_3 : pas d'utilisateur non-root (tourne en root par défaut)
+#
+# Ne jamais "corriger" ce fichier - c'est le but recherché. Si Checkov ne
+# le bloque plus, vérifier que ces 2 règles sont toujours actives.
+# =============================================================================
+
+FROM ubuntu:18.04
+
+LABEL maintainer="poc-ci@example.com"
+LABEL description="Demo - Dockerfile volontairement non conforme (Checkov FAIL attendu)"
+LABEL version="1.0.0"
+
+ENV DEBIAN_FRONTEND=noninteractive
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+        gcc-7 \
+        g++-7 \
+        make \
+        cmake \
+        binutils \
+        file \
+        git \
+        ca-certificates \
+        gcc-arm-linux-gnueabi \
+        binutils-arm-linux-gnueabi \
+        curl \
+        unzip \
+    && apt-get clean \
+    && rm -rf /var/lib/apt/lists/*
+
+RUN update-alternatives --install /usr/bin/gcc gcc /usr/bin/gcc-7 70 \
+ && update-alternatives --install /usr/bin/g++ g++ /usr/bin/g++-7 70
+
+COPY simulator/simulator.c /opt/simulator/simulator.c
+
+RUN gcc -Wall -O2 -o /usr/local/bin/simulator /opt/simulator/simulator.c \
+ && chmod +x /usr/local/bin/simulator \
+ && rm -rf /opt/simulator
+
+WORKDIR /workspace
+
+RUN gcc --version \
+ && arm-linux-gnueabi-gcc --version \
+ && simulator --help 2>&1 || true
+
+CMD ["/bin/bash"]

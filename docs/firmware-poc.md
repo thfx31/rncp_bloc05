@@ -56,3 +56,13 @@ exécution du pipeline. `/workspace` est en `chmod 1777` (comme `/tmp`) car
 c'est un bind-mount du workspace Jenkins (créé par le checkout git, exécuté
 en root côté conteneur `builder`) - sans ça, l'utilisateur non-root du
 conteneur de build ne pourrait pas y écrire.
+
+## `VARIANT=broken` - fixture de démo (recette DevSecOps)
+
+Troisième choix du paramètre `VARIANT`, en plus de `legacy`/`modern` :
+`docker/Dockerfile.broken` reprend `Dockerfile.legacy` **sans** les 2
+corrections Checkov ci-dessus (pas de `USER` non-root, pas de `HEALTHCHECK`).
+Sert uniquement à démontrer en direct (cahier de recettes, soutenance) que le
+pipeline bloque bien avant tout build/push dès qu'un Dockerfile est non
+conforme - un clic "Build with Parameters", pas de commit à faire en live. Ne
+jamais corriger ce fichier : la non-conformité est le but recherché.
