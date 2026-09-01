@@ -50,6 +50,25 @@ Tableau vivant, complété à chaque décision (cf. `docs/architecture.md`).
 | Sévérité au démarrage | `soft_fail: true` (tfsec, Checkov, `continue-on-error` pour ansible-lint) | Premier scan jamais fait sur ce repo - évite le bruit des faux positifs le temps de les trier. Bascule en hard-fail prévue avant la soutenance |
 | Portée | GitHub Actions sur `terraform/`/`ansible/` uniquement, distinct du Checkov Jenkins (scan des Dockerfiles applicatifs) | Deux couches de scan séparées : IaC infra (GitHub, avant `terraform apply`) vs image applicative (GitLab/Jenkins, avant `docker push`) - cf. `docs/checkov-tfsec.md` |
 
+## Qualité (Phase 4) - SonarQube et l'analyse C (plugin sonar-cxx)
+
+| Aspect | Choix POC | Justification |
+|---|---|---|
+| Plugin C/C++ | Plugin communautaire `sonar-cxx` installé à la main sur le pod (jar copié sur le volume persistant, hors Helm chart) - procédure documentée dans `docs/sonarqube-cxx-plugin.md` | SonarQube Community Edition ne supporte plus nativement le C/C++ (l'analyseur CFamily officiel est réservé à Developer Edition) - sans plugin, l'analyse remonte 0 ligne de code. `sonar-cxx` est la seule alternative FOSS viable, mais n'est pas packagée dans le Helm chart officiel - à réinstaller après chaque destroy/rebuild |
+| Analyse des bugs/vulnérabilités | Rapport `cppcheck` généré par un stage Jenkins dédié puis importé dans SonarQube (`sonar.cxx.cppcheck.reportPaths`) | Le plugin `sonar-cxx` ne fait pas d'analyse sémantique native pour les règles Bug/Vulnerability - il ne fait qu'importer des rapports d'outils externes (cppcheck, clang-tidy...). cppcheck est l'outil le plus simple à intégrer en CI (paquet apt standard) |
+| Quality Gate | Gate custom `PoC - report only` (sans conditions Coverage ni New Issues), positionné en Default instance, plutôt que le gate `Sonar way` | Aucun outil de couverture de tests n'est intégré pour le C dans ce pipeline (pas de gcov/lcov) - la condition Coverage échouerait systématiquement, sans rapport avec une vraie régression. Le profil qualité complet remonte par ailleurs des dizaines de règles de convention (ex. documentation Doxygen manquante) sur un code qui n'a jamais visé ce niveau de formalisme - l'objectif de ce POC est de démontrer une chaîne d'analyse statique opérationnelle et un rapport exploitable, pas de faire échouer le pipeline sur un critère non représentatif |
+
+**Argument à l'oral (Q&A)** : le dashboard SonarQube affiche des issues (essentiellement
+des manques de documentation de l'API, une fonction non utilisée) alors que le
+pipeline Jenkins reste vert - c'est volontaire, pas un gate mal configuré ou
+ignoré. Le Quality Gate a été délibérément réduit aux conditions pertinentes
+pour un premier scan sur ce code (pas de couverture de tests C intégrée, pas
+de vrais bugs bloquants détectés à ce stade), afin de prouver que la chaîne
+scan statique (cppcheck) → import SonarQube → dashboard est bout en bout
+fonctionnelle, sans bloquer artificiellement une démo sur un critère qui doit
+se durcir progressivement (vraie couverture de tests, quality gate resserré)
+à mesure que le projet mûrit - plutôt que dès le premier commit.
+
 ## Sécurité (Phase 4) - Vault K8s auth / Jenkins-Vault / ESO / Kyverno : non implémentés
 
 **Décision (2026-07-06)** : ces briques (auth K8s Vault, Jenkins qui va

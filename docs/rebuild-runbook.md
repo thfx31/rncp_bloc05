@@ -194,6 +194,13 @@ kubectl create secret generic sonarqube-token -n jenkins --from-literal=text="<t
 kubectl label secret sonarqube-token -n jenkins jenkins.io/credentials-type=secretText
 ```
 
+**Étape manuelle supplémentaire - plugin C/C++ SonarQube** : sans elle, le
+stage "SonarQube analysis" tourne mais remonte 0 ligne de code (Community
+Edition ne supporte pas nativement le C). Procédure complète (téléchargement
+du plugin, redémarrage du pod, profil qualité CXX, Quality Gate) :
+`docs/sonarqube-cxx-plugin.md` - à rejouer avant le premier build du pipeline
+`firmware-poc`.
+
 **Premier build** : le job `firmware-poc` est créé automatiquement (Job DSL,
 au démarrage de Jenkins) mais Jenkins n'affiche **Build with Parameters**
 (paramètre `VARIANT: legacy|modern`) qu'après avoir exécuté le Jenkinsfile
