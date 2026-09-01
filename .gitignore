@@ -37,3 +37,4 @@ CONTEXT.md
 app/firmware-poc/build/
 *.key
 *.pub
+cppcheck-report.xml
