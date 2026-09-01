@@ -1,4 +1,4 @@
-# Cosign — signature d'images
+# Cosign - signature d'images
 
 ## Quoi
 
@@ -12,10 +12,10 @@ poussée directement dans Harbor en contournant le pipeline CI.
 ## Pourquoi clé statique, pas keyless
 
 Sigstore recommande en priorité le mode **keyless** (certificat éphémère signé par Fulcio
-via un token OIDC, transparence publique dans le log Rekor) — pas de clé privée à gérer du
+via un token OIDC, transparence publique dans le log Rekor) - pas de clé privée à gérer du
 tout. Choix POC : **clé statique** (`cosign generate-key-pair`) à la place, pour ne pas
 dépendre de la joignabilité de `fulcio.sigstore.dev`/`rekor.sigstore.dev` ni d'un OIDC
-issuer externe le jour de la soutenance — une démo doit rester autonome et fiable sans
+issuer externe le jour de la soutenance - une démo doit rester autonome et fiable sans
 dépendre d'un service tiers.
 
 En prod, la piste naturelle serait Vault comme backend KMS
@@ -26,12 +26,12 @@ POC (aurait fait dépendre la capacité de signer d'un Vault unsealed).
 ## Où est la clé
 
 - **Clé privée** (`cosign.key`) : générée hors repo, dans `~/.cosign/rncp-bc05/` sur le
-  poste opérateur — **jamais committée**. Passphrase vide (`COSIGN_PASSWORD=""`) pour
+  poste opérateur - **jamais committée**. Passphrase vide (`COSIGN_PASSWORD=""`) pour
   permettre une signature non-interactive depuis un pipeline Jenkins.
 - **Clé publique** (`cosign.pub`) : committée dans
-  `kubernetes/01-apps/cosign-public-key/cosign.pub` — ce n'est pas un secret. Elle
+  `kubernetes/01-apps/cosign-public-key/cosign.pub` - ce n'est pas un secret. Elle
   serait utilisée par une policy Kyverno (`verifyImages`) pour vérifier les
-  signatures à l'admission — piste envisagée, non implémentée dans ce POC,
+  signatures à l'admission - piste envisagée, non implémentée dans ce POC,
   cf. `docs/evolutions-possibles.md`.
 
 ## Commandes
@@ -48,12 +48,12 @@ cosign verify --key cosign.pub harbor.k8s.yplank.fr/<project>/<image>:<tag>
 ```
 
 `cosign verify` échoue explicitement (exit non-zero, message clair) si l'image n'a jamais
-été signée, ou si la signature ne correspond pas à la clé publique fournie — un
+été signée, ou si la signature ne correspond pas à la clé publique fournie - un
 Kyverno `ClusterPolicy verifyImages` réutiliserait ce même comportement pour
 bloquer un déploiement à l'admission (piste non implémentée, cf.
 `docs/evolutions-possibles.md`).
 
 ## Arbitrage POC vs prod
 
-Voir `docs/poc-vs-prod.md` — clé statique + passphrase vide, vs keyless/Sigstore ou Vault
+Voir `docs/poc-vs-prod.md` - clé statique + passphrase vide, vs keyless/Sigstore ou Vault
 Transit KMS en prod.

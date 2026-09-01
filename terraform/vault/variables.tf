@@ -11,7 +11,7 @@ variable "scw_zone" {
 }
 
 variable "cluster_name" {
-  description = "Doit correspondre au cluster_name de terraform/cluster/ — sert à retrouver le réseau privé existant par nom (\"$${cluster_name}-private\")"
+  description = "Doit correspondre au cluster_name de terraform/cluster/ - sert à retrouver le réseau privé existant par nom (\"$${cluster_name}-private\")"
   type        = string
   default     = "rncp-bc05"
 }
@@ -29,7 +29,7 @@ variable "instance_type_vault" {
 }
 
 variable "image" {
-  description = "Image Scaleway — vérifier le nom exact : scw marketplace image list | grep -i alma"
+  description = "Image Scaleway - vérifier le nom exact : scw marketplace image list | grep -i alma"
   type        = string
   default     = "almalinux_9"
 }

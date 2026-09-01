@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Inventaire Ansible dynamique — lit :
+Inventaire Ansible dynamique - lit :
   tf_outputs.json        généré par terraform -chdir=../terraform/cluster output -json
   tf_outputs_vault.json  généré par terraform -chdir=../terraform/vault output -json (optionnel)
 

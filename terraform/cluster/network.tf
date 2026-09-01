@@ -1,5 +1,5 @@
 # ── Réseau privé inter-nodes ──────────────────────────────
-# Scaleway VPC Private Network — pas de port_security, pas d'anti-spoofing
+# Scaleway VPC Private Network - pas de port_security, pas d'anti-spoofing
 # Compatible Kubernetes/Cilium sans configuration spéciale
 #
 # Le nom de cette ressource est retrouvé par terraform/vault/ (data source, par nom)

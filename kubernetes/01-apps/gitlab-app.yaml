@@ -1,7 +1,7 @@
 # Vérifier avant rebuild : https://gitlab.com/gitlab-org/charts/gitlab/-/releases
 #
 # Le Secret "gitlab-initial-root-password" (namespace gitlab, clé "password")
-# n'est PAS dans ce repo — créé via `make k8s-apps-secrets`, jamais committé.
+# n'est PAS dans ce repo - créé via `make k8s-apps-secrets`, jamais committé.
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:

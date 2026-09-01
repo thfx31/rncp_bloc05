@@ -35,3 +35,5 @@ terraform.rc
 
 CONTEXT.md
 app/firmware-poc/build/
+*.key
+*.pub

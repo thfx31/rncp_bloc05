@@ -1,7 +1,7 @@
 # Vérifier avant rebuild : https://github.com/goharbor/harbor-helm/releases
 #
 # Le Secret "harbor-admin-password" (namespace harbor, clés HARBOR_ADMIN_PASSWORD
-# et secretKey) n'est PAS dans ce repo — créé via `make k8s-apps-secrets` à
+# et secretKey) n'est PAS dans ce repo - créé via `make k8s-apps-secrets` à
 # partir de mots de passe générés aléatoirement, jamais committés.
 apiVersion: argoproj.io/v1alpha1
 kind: Application

@@ -4,7 +4,7 @@
 #include "hal.h"
 
 /* ------------------------------------------------------------------ */
-/* HAL stubs — in real HW these map to register-level calls            */
+/* HAL stubs - in real HW these map to register-level calls            */
 /* ------------------------------------------------------------------ */
 
 void hal_init(void)

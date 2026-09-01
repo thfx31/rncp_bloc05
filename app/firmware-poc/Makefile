@@ -1,5 +1,5 @@
 # =============================================================================
-# Makefile — firmware-poc
+# Makefile - firmware-poc
 # Supports:
 #   make TARGET=arm    → cross-compile for ARM Cortex-M (arm-linux-gnueabi-gcc)
 #   make TARGET=x86    → native build for CI validation (default)

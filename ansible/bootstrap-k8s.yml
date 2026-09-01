@@ -7,13 +7,13 @@
     - security
     - kubernetes-prereqs
 
-- name: Bootstrap RKE2 — control-plane
+- name: Bootstrap RKE2 - control-plane
   hosts: control_plane
   become: true
   roles:
     - rke2
 
-- name: Bootstrap RKE2 — agents
+- name: Bootstrap RKE2 - agents
   hosts: workers
   become: true
   roles:

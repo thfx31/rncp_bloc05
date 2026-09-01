@@ -2,7 +2,7 @@
 # build-legacy-ubuntu18
 #
 # Represents the legacy build environment used in production:
-#   - Ubuntu 18.04 (Bionic) — EOL but still used for old toolchains
+#   - Ubuntu 18.04 (Bionic) - EOL but still used for old toolchains
 #   - gcc-7 (legacy compiler required by old firmware projects)
 #   - arm-linux-gnueabi cross-compiler
 #   - Simulator binary for CI validation
@@ -14,7 +14,7 @@
 FROM ubuntu:18.04
 
 LABEL maintainer="poc-ci@example.com"
-LABEL description="Legacy build environment — Ubuntu 18.04 + gcc-7"
+LABEL description="Legacy build environment - Ubuntu 18.04 + gcc-7"
 LABEL version="1.0.0"
 
 # Avoid interactive prompts during package install
@@ -50,10 +50,10 @@ RUN gcc -Wall -O2 -o /usr/local/bin/simulator /opt/simulator/simulator.c \
  && chmod +x /usr/local/bin/simulator \
  && rm -rf /opt/simulator
 
-# Build directory — firmware sources will be mounted/copied here.
+# Build directory - firmware sources will be mounted/copied here.
 # chmod 1777 (comme /tmp) : le conteneur tourne en non-root (cf. USER plus bas)
 # mais /workspace est un bind-mount du workspace Jenkins (proprio root côté
-# hôte, checkout git fait par le conteneur "builder") — sans ça, l'utilisateur
+# hôte, checkout git fait par le conteneur "builder") - sans ça, l'utilisateur
 # non-root ne pourrait pas écrire dedans (build/*.o, firmware.elf).
 WORKDIR /workspace
 RUN chmod 1777 /workspace
@@ -63,7 +63,7 @@ RUN gcc --version \
  && arm-linux-gnueabi-gcc --version \
  && simulator --help 2>&1 || true
 
-# CKV_DOCKER_2 : HEALTHCHECK — image utilisée uniquement en one-shot CI
+# CKV_DOCKER_2 : HEALTHCHECK - image utilisée uniquement en one-shot CI
 # (compilation, jamais en service long), donc juste une vérif que la
 # toolchain reste utilisable.
 HEALTHCHECK --interval=5m --timeout=5s CMD gcc --version || exit 1

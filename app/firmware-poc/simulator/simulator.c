@@ -1,5 +1,5 @@
 /**
- * simulator.c — ELF binary validator for CI pipeline
+ * simulator.c - ELF binary validator for CI pipeline
  * Supports ELF32 and ELF64.
  * Exit: 0=PASS, 1=FAIL
  */
@@ -45,7 +45,7 @@ static void fail(const char *c, const char *r)    { printf("  [FAIL] %s: %s\n", 
 int main(int argc, char *argv[])
 {
     printf("============================================================\n");
-    printf(" POC Firmware Simulator — Binary Validator\n");
+    printf(" POC Firmware Simulator - Binary Validator\n");
     printf("============================================================\n\n");
 
     if (argc != 2) { fprintf(stderr, "Usage: %s <firmware.elf>\n", argv[0]); return 1; }
@@ -122,11 +122,11 @@ done:
     free(buf);
     printf("\n--- Result ---\n");
     if (err == 0) {
-        printf("  SIMULATOR: PASS — binary validated successfully\n");
+        printf("  SIMULATOR: PASS - binary validated successfully\n");
         printf("============================================================\n");
         return 0;
     } else {
-        printf("  SIMULATOR: FAIL — %d check(s) failed\n", err);
+        printf("  SIMULATOR: FAIL - %d check(s) failed\n", err);
         printf("============================================================\n");
         return 1;
     }

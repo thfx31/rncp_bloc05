@@ -1,7 +1,7 @@
 # Vérifier avant rebuild : https://github.com/jenkinsci/helm-charts/releases
 #
 # Le Secret "jenkins-admin-secret" (namespace jenkins, clés jenkins-admin-user
-# et jenkins-admin-password) n'est PAS dans ce repo — créé via
+# et jenkins-admin-password) n'est PAS dans ce repo - créé via
 # `make k8s-apps-secrets`, jamais committé.
 apiVersion: argoproj.io/v1alpha1
 kind: Application
@@ -56,7 +56,7 @@ spec:
           JCasC:
             configScripts:
               # Définit le job pipeline firmware-poc de façon déclarative
-              # (Job DSL) — survit à un rebuild complet, pas de clic UI.
+              # (Job DSL) - survit à un rebuild complet, pas de clic UI.
               firmware-poc-job: |
                 jobs:
                   - script: >
@@ -83,7 +83,7 @@ spec:
                         }
                       }
               # Variables globales attendues par app/firmware-poc/Jenkinsfile
-              # (HARBOR_URL, SONAR_HOST_URL) — déclaratif, pas de saisie manuelle
+              # (HARBOR_URL, SONAR_HOST_URL) - déclaratif, pas de saisie manuelle
               # dans Manage Jenkins > System après un rebuild.
               global-env-vars: |
                 jenkins:

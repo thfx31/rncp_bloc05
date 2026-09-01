@@ -17,5 +17,5 @@
     immediate: true
     state: enabled
   loop:
-    - 8200/tcp  # API — atteint depuis le réseau privé par Jenkins (auth K8s)
+    - 8200/tcp  # API - atteint depuis le réseau privé par Jenkins (auth K8s)
     - 8201/tcp  # Raft cluster (inutile en single-node, ouvert par cohérence)

@@ -1,4 +1,4 @@
-# Runbook — reconstruction complète de zéro
+# Runbook - reconstruction complète de zéro
 
 Mode opératoire linéaire à redérouler tel quel à chaque fois que l'infra est
 détruite puis recréée (coût Scaleway entre deux sessions de travail). Distinct
@@ -7,7 +7,7 @@ c'est la remise en route technique, pas la présentation devant le jury.
 
 Chaque étape renvoie vers la doc détaillée correspondante si besoin de
 contexte (`docs/vault.md`, `docs/cluster-foundation.md`,
-`docs/poc-vs-prod.md`) — ce runbook ne fait que dérouler l'ordre et les
+`docs/poc-vs-prod.md`) - ce runbook ne fait que dérouler l'ordre et les
 commandes.
 
 ## 0. Variables d'environnement (à exporter dans le shell avant tout)
@@ -23,28 +23,28 @@ export SCW_DEFAULT_ORGANIZATION_ID=...
 export AWS_ACCESS_KEY_ID=$SCW_ACCESS_KEY
 export AWS_SECRET_ACCESS_KEY=$SCW_SECRET_KEY
 
-# cert-manager — DNS-01 OVH pour yplank.fr (application API dédiée, droits
-# scopés sur /domain/zone/yplank.fr* uniquement — cf. docs/cluster-foundation.md)
+# cert-manager - DNS-01 OVH pour yplank.fr (application API dédiée, droits
+# scopés sur /domain/zone/yplank.fr* uniquement - cf. docs/cluster-foundation.md)
 export OVH_APPLICATION_KEY=...
 export OVH_APPLICATION_SECRET=...
 export OVH_CONSUMER_KEY=...
 ```
 
-## 1. Terraform — cluster puis Vault
+## 1. Terraform - cluster puis Vault
 
 ```bash
 make tf-cluster-apply   # réseau privé, control-plane, workers
-make tf-vault-apply     # VM Vault dédiée — après cluster (data source réseau par nom)
+make tf-vault-apply     # VM Vault dédiée - après cluster (data source réseau par nom)
 ```
 
-## 2. Ansible — RKE2 puis Vault
+## 2. Ansible - RKE2 puis Vault
 
 ```bash
 make ansible-k8s        # bootstrap OS + RKE2 control-plane/agents
 make ansible-vault      # install Vault (TLS auto-signée, raft single-node)
 ```
 
-## 3. Vault — init + unseal (manuel, à refaire à chaque recréation de la VM)
+## 3. Vault - init + unseal (manuel, à refaire à chaque recréation de la VM)
 
 ```bash
 export VAULT_ADDR="https://<ip-publique-vault>:8200"
@@ -65,17 +65,17 @@ export KUBECONFIG=~/.kube/config-rncp-bc05
 make nodes    # vérifier que les 3 nodes sont Ready
 ```
 
-## 5. Fondation cluster — Secrets, CCM, puis ArgoCD
+## 5. Fondation cluster - Secrets, CCM, puis ArgoCD
 
 ```bash
 make k8s-secrets           # Secrets scaleway-secret (kube-system) + ovh-credentials (cert-manager)
-make k8s-ccm               # CCM Scaleway — lève le taint "uninitialized" sur les nodes
+make k8s-ccm               # CCM Scaleway - lève le taint "uninitialized" sur les nodes
 make k8s-bootstrap-argocd  # ArgoCD (manifeste officiel) + patch --insecure + root-app
 ```
 
 **Piège connu** : sans `make k8s-ccm` avant le bootstrap ArgoCD, RKE2
 (`cloud-provider-name: external`) laisse le taint
-`node.cloudprovider.kubernetes.io/uninitialized` sur tous les nodes — ArgoCD
+`node.cloudprovider.kubernetes.io/uninitialized` sur tous les nodes - ArgoCD
 (et tout le reste) reste `Pending` indéfiniment tant que le CCM n'a pas
 tourné. Le Makefile encode déjà cet ordre (`k8s-bootstrap-argocd: k8s-ccm`).
 
@@ -85,10 +85,10 @@ Détail : `docs/cluster-foundation.md`.
 
 ```bash
 kubectl get application -n argocd   # attendre Synced/Healthy sur tout sauf root-app
-                                     # (root-app reste OutOfSync — cosmétique, sans impact)
+                                     # (root-app reste OutOfSync - cosmétique, sans impact)
 ```
 
-## 6. DNS — wildcard *.k8s.yplank.fr
+## 6. DNS - wildcard *.k8s.yplank.fr
 
 Récupérer l'IP du Load Balancer Scaleway provisionné par le CCM :
 
@@ -97,7 +97,7 @@ kubectl get svc ingress-nginx-controller -n ingress-nginx
 ```
 
 Créer/mettre à jour **un seul enregistrement wildcard** chez OVH (zone
-`yplank.fr`, manuel via la console OVH ou API) — couvre `argocd.k8s`,
+`yplank.fr`, manuel via la console OVH ou API) - couvre `argocd.k8s`,
 `harbor.k8s`, `gitlab.k8s`, `sonarqube.k8s`, `jenkins.k8s` et tout sous-domaine
 futur sans repasser par le DNS à chaque nouvelle app :
 
@@ -121,7 +121,7 @@ Affiché en sortie de `make k8s-bootstrap-argocd`, ou à défaut :
 kubectl -n argocd get secret argocd-initial-admin-secret -o jsonpath="{.data.password}" | base64 -d; echo
 ```
 
-## 8. Observabilité (Phase 5) — Prometheus/Grafana + Loki/Promtail
+## 8. Observabilité (Phase 5) - Prometheus/Grafana + Loki/Promtail
 
 Détail complet : `docs/monitoring.md`.
 
@@ -130,14 +130,14 @@ make k8s-monitoring-secrets   # Secret admin Grafana (généré, affiché une fo
 ```
 
 `layer-02-observability` (sync-wave 2) prend le relais tout seul ensuite.
-Rien à ajouter côté DNS — le wildcard `*.k8s.yplank.fr` (étape 6) couvre déjà
+Rien à ajouter côté DNS - le wildcard `*.k8s.yplank.fr` (étape 6) couvre déjà
 `grafana.k8s.yplank.fr`.
 
 ```bash
 kubectl get application -n argocd   # attendre Synced/Healthy sur kube-prometheus-stack/loki-stack
 ```
 
-## 9. Stack applicative (Phase 3) — Harbor, GitLab, SonarQube, Jenkins
+## 9. Stack applicative (Phase 3) - Harbor, GitLab, SonarQube, Jenkins
 
 Détail complet : `docs/apps-stack.md`.
 
@@ -146,17 +146,17 @@ make k8s-apps-secrets   # Secrets admin Harbor/GitLab/Jenkins (générés, affic
 ```
 
 `layer-01-apps` (sync-wave 1, après `layer-00-infra`) prend le relais tout
-seul dès que le commit est poussé — pas de commande supplémentaire.
+seul dès que le commit est poussé - pas de commande supplémentaire.
 
 ```bash
 kubectl get application -n argocd   # attendre Synced/Healthy sur harbor/gitlab/sonarqube/jenkins
 ```
 
-Rien à ajouter côté DNS — le wildcard `*.k8s.yplank.fr` (étape 6) couvre déjà
+Rien à ajouter côté DNS - le wildcard `*.k8s.yplank.fr` (étape 6) couvre déjà
 ces 4 sous-domaines.
 
 Mots de passe (générés une seule fois, affichés en sortie de
-`make k8s-apps-secrets` — si perdus, récupérables tant que le cluster tourne,
+`make k8s-apps-secrets` - si perdus, récupérables tant que le cluster tourne,
 détail complet des 4 apps dans `docs/apps-stack.md`) :
 
 ```bash
@@ -164,16 +164,16 @@ détail complet des 4 apps dans `docs/apps-stack.md`) :
 kubectl get secret gitlab-initial-root-password -n gitlab -o jsonpath='{.data.password}' | base64 -d; echo
 ```
 
-## 10. Pipeline sécurisé (Phase 4/6) — firmware-poc
+## 10. Pipeline sécurisé (Phase 4/6) - firmware-poc
 
 Détail complet : `docs/apps-stack.md` (credentials/webhook) et
 `docs/cosign.md` (clé de signature).
 
 ```bash
-# 1. Clé Cosign (une seule fois, réutilisable entre rebuilds — ~/.cosign/rncp-bc05/)
+# 1. Clé Cosign (une seule fois, réutilisable entre rebuilds - ~/.cosign/rncp-bc05/)
 COSIGN_PASSWORD="" cosign generate-key-pair   # si ~/.cosign/rncp-bc05/cosign.key absent
 
-# 2. Projet Harbor "poc-ci" — sans lui, le premier docker push échoue avec
+# 2. Projet Harbor "poc-ci" - sans lui, le premier docker push échoue avec
 #    "unauthorized: project poc-ci not found" (Harbor ne crée que "library"
 #    par défaut)
 make harbor-init
@@ -181,11 +181,11 @@ make harbor-init
 # 3. Bootstrap GitLab (groupe/projet + push du code, webhook pas encore possible)
 make gitlab-init
 
-# 4. Credentials Jenkins (Harbor/GitLab/Cosign + token webhook) — puis attendre
+# 4. Credentials Jenkins (Harbor/GitLab/Cosign + token webhook) - puis attendre
 #    le redémarrage du pod Jenkins (nouveau plugin/env var, ~1-2 min)
 make jenkins-credentials
 
-# 5. Relancer gitlab-init — configure le webhook GitLab -> Jenkins cette fois
+# 5. Relancer gitlab-init - configure le webhook GitLab -> Jenkins cette fois
 make gitlab-init
 
 # 6. Étape manuelle : générer un token SonarQube (admin/admin, changement de
@@ -197,18 +197,18 @@ kubectl label secret sonarqube-token -n jenkins jenkins.io/credentials-type=secr
 **Premier build** : le job `firmware-poc` est créé automatiquement (Job DSL,
 au démarrage de Jenkins) mais Jenkins n'affiche **Build with Parameters**
 (paramètre `VARIANT: legacy|modern`) qu'après avoir exécuté le Jenkinsfile
-au moins une fois — lancer un premier `Build Now` (tourne avec les valeurs
+au moins une fois - lancer un premier `Build Now` (tourne avec les valeurs
 par défaut), puis rafraîchir la page du job.
 
 Le webhook GitLab déclenche automatiquement `VARIANT=legacy` à chaque push
 sur le projet `firmware-poc`. `VARIANT=modern` (Ubuntu 22.04/gcc-12) se
-lance uniquement à la main via **Build with Parameters** — démontre que les
+lance uniquement à la main via **Build with Parameters** - démontre que les
 deux OS tournent comme agents Kubernetes dynamiques sur le même cluster,
 sans node Jenkins dédié par OS (cf. `docs/architecture.md`, problématique de départ).
 
 **Piège connu** : après un push touchant `kubernetes/01-apps/*.yaml` (ex.
 nouveau plugin Jenkins, nouveau manifeste RBAC), rafraîchir/sync l'app
-enfant (`jenkins`, `harbor`...) dans l'UI ArgoCD **ne sert à rien** — ces
+enfant (`jenkins`, `harbor`...) dans l'UI ArgoCD **ne sert à rien** - ces
 apps enfants ont leur `source` sur le chart Helm (`charts.jenkins.io`...),
 pas sur Git. C'est l'app du **layer** (`layer-01-apps`) qu'il faut
 refresh/sync en premier : elle relit Git et met à jour la définition de

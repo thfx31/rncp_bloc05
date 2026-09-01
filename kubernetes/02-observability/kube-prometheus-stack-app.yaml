@@ -1,5 +1,5 @@
 # Le Secret "grafana-admin-secret" (namespace monitoring, clés admin-user et
-# admin-password) n'est PAS dans ce repo — créé via `make k8s-monitoring-secrets`,
+# admin-password) n'est PAS dans ce repo - créé via `make k8s-monitoring-secrets`,
 # jamais committé.
 apiVersion: argoproj.io/v1alpha1
 kind: Application
@@ -14,7 +14,7 @@ spec:
     targetRevision: "87.10.1"
     helm:
       values: |
-        # Alertmanager désactivé — pas de canal de notification à configurer
+        # Alertmanager désactivé - pas de canal de notification à configurer
         # pour un POC de démo, aucune alerte n'est montrée
         alertmanager:
           enabled: false
@@ -33,7 +33,7 @@ spec:
                   resources:
                     requests:
                       storage: 5Gi
-            # worker-02 (SonarQube + Jenkins controller) — pas worker-01, déjà
+            # worker-02 (SonarQube + Jenkins controller) - pas worker-01, déjà
             # chargé par Harbor/GitLab/agents Jenkins
             nodeSelector:
               kubernetes.io/hostname: rncp-bc05-worker-02
@@ -64,7 +64,7 @@ spec:
           # sidecar Grafana (cf. loki-stack-app.yaml, loki.isDefault: false)
 
         # Composants lightweight, laissés par défaut (DaemonSet node-exporter,
-        # kube-state-metrics) — pas de nodeSelector, doivent tourner partout
+        # kube-state-metrics) - pas de nodeSelector, doivent tourner partout
   destination:
     server: https://kubernetes.default.svc
     namespace: monitoring

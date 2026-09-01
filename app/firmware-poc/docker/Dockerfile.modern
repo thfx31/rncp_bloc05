@@ -2,7 +2,7 @@
 # build-modern-ubuntu22
 #
 # Represents the modern build environment for new firmware projects:
-#   - Ubuntu 22.04 (Jammy) — LTS, actively maintained
+#   - Ubuntu 22.04 (Jammy) - LTS, actively maintained
 #   - gcc-12 (modern compiler with enhanced warnings and hardening)
 #   - arm-linux-gnueabihf cross-compiler (hard-float ABI, Cortex-A targets)
 #   - Simulator binary for CI validation
@@ -11,7 +11,7 @@
 FROM ubuntu:22.04
 
 LABEL maintainer="poc-ci@example.com"
-LABEL description="Modern build environment — Ubuntu 22.04 + gcc-12"
+LABEL description="Modern build environment - Ubuntu 22.04 + gcc-12"
 LABEL version="1.0.0"
 
 ENV DEBIAN_FRONTEND=noninteractive
@@ -48,7 +48,7 @@ RUN gcc -Wall -O2 -o /usr/local/bin/simulator /opt/simulator/simulator.c \
  && chmod +x /usr/local/bin/simulator \
  && rm -rf /opt/simulator
 
-# Build directory — bind-mount du workspace Jenkins (proprio root côté
+# Build directory - bind-mount du workspace Jenkins (proprio root côté
 # hôte). chmod 1777 pour que l'utilisateur non-root (cf. USER plus bas)
 # puisse y écrire (build/*.o, firmware.elf).
 WORKDIR /workspace
@@ -59,7 +59,7 @@ RUN gcc --version \
  && arm-linux-gnueabihf-gcc --version \
  && simulator --help 2>&1 || true
 
-# CKV_DOCKER_2 : HEALTHCHECK — image utilisée uniquement en one-shot CI
+# CKV_DOCKER_2 : HEALTHCHECK - image utilisée uniquement en one-shot CI
 # (compilation, jamais en service long), donc juste une vérif que la
 # toolchain reste utilisable.
 HEALTHCHECK --interval=5m --timeout=5s CMD gcc --version || exit 1

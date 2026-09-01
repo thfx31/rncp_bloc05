@@ -1,27 +1,27 @@
 // =============================================================================
-// Jenkinsfile — POC CI/CD pipeline (Phase 4 — DevSecOps)
+// Jenkinsfile - POC CI/CD pipeline (Phase 4 - DevSecOps)
 //
-// Paramétré (VARIANT: legacy/modern) — démontre la problématique de départ
+// Paramétré (VARIANT: legacy/modern) - démontre la problématique de départ
 // (CONTEXT.md) : toolchains figées par OS (Ubuntu 18.04 EOL vs 22.04) qui
 // imposaient jadis des workstations/nodes Jenkins dédiés par OS. Ici, les
 // deux tournent comme agents Kubernetes dynamiques sur le même cluster, à
-// la demande — pas besoin d'un node par OS. Le webhook GitLab déclenche
+// la demande - pas besoin d'un node par OS. Le webhook GitLab déclenche
 // "legacy" par défaut ; "modern" se lance via "Build with Parameters".
 //
 // Stages :
-//   1. Checkout          — récupère le code depuis GitLab
-//   2. Checkov scan      — lint sécurité du Dockerfile, FAIL sur finding bloquant
-//   3. Build Docker image — rebuild l'image si Dockerfile modifié
-//   4. Trivy scan        — scan de vulnérabilités, FAIL si HIGH/CRITICAL
-//   5. Syft SBOM         — inventaire des paquets de l'image (SPDX)
-//   6. Build firmware    — compilation dans le conteneur (gcc-7 legacy / gcc-12 modern)
-//   7. SonarQube         — analyse statique + Quality Gate
-//   8. Simulator         — validation ELF du binaire produit
-//   9. Push Harbor       — pousse l'image validée
-//  10. Cosign sign       — signe l'image poussée + atteste le SBOM
+//   1. Checkout          - récupère le code depuis GitLab
+//   2. Checkov scan      - lint sécurité du Dockerfile, FAIL sur finding bloquant
+//   3. Build Docker image - rebuild l'image si Dockerfile modifié
+//   4. Trivy scan        - scan de vulnérabilités, FAIL si HIGH/CRITICAL
+//   5. Syft SBOM         - inventaire des paquets de l'image (SPDX)
+//   6. Build firmware    - compilation dans le conteneur (gcc-7 legacy / gcc-12 modern)
+//   7. SonarQube         - analyse statique + Quality Gate
+//   8. Simulator         - validation ELF du binaire produit
+//   9. Push Harbor       - pousse l'image validée
+//  10. Cosign sign       - signe l'image poussée + atteste le SBOM
 //
 // Prérequis Jenkins (Credentials, auto-découverts via kubernetes-credentials-
-// provider — cf. docs/apps-stack.md, aucune valeur en clair ici) :
+// provider - cf. docs/apps-stack.md, aucune valeur en clair ici) :
 //   - harbor-credentials  : Username/Password
 //   - gitlab-credentials  : Username/Password
 //   - sonarqube-token     : Secret text (token généré manuellement dans SonarQube)
@@ -36,7 +36,7 @@ pipeline {
 
     parameters {
         choice(name: "VARIANT", choices: ["legacy", "modern"],
-               description: "legacy = Ubuntu 18.04/gcc-7 (défaut, webhook) — modern = Ubuntu 22.04/gcc-12")
+               description: "legacy = Ubuntu 18.04/gcc-7 (défaut, webhook) - modern = Ubuntu 22.04/gcc-12")
     }
 
     agent {
@@ -93,10 +93,10 @@ spec:
       env:
         - name: DOCKER_HOST
           value: tcp://localhost:2375
-    # Conteneur dédié Checkov (lint sécurité du Dockerfile — pas besoin du
+    # Conteneur dédié Checkov (lint sécurité du Dockerfile - pas besoin du
     # daemon Docker, il ne fait que lire le fichier). Attention au nom exact
     # de l'image : "bridgecrewio/checkov" n'existe pas sur Docker Hub, c'est
-    # "bridgecrew/checkov" (sans le "io") — et pas de tag "latest", pinné en
+    # "bridgecrew/checkov" (sans le "io") - et pas de tag "latest", pinné en
     # 3.3.6.
     - name: checkov
       image: bridgecrew/checkov:3.3.6
@@ -116,7 +116,7 @@ spec:
         IMAGE_NAME      = "${params.VARIANT == 'modern' ? 'build-modern-ubuntu22' : 'build-legacy-ubuntu18'}"
         FULL_IMAGE      = "${HARBOR_URL}/${HARBOR_PROJECT}/${IMAGE_NAME}"
 
-        // Dockerfile.legacy / Dockerfile.modern — le nom du paramètre matche
+        // Dockerfile.legacy / Dockerfile.modern - le nom du paramètre matche
         // directement le suffixe du fichier.
         DOCKERFILE_PATH = "docker/Dockerfile.${params.VARIANT}"
         BUILD_OUTPUT    = "build/firmware.elf"
@@ -159,7 +159,7 @@ spec:
                 container("checkov") {
                     script {
                         // Lint sécurité du Dockerfile lui-même (pas de l'image buildée,
-                        // c'est le rôle de Trivy plus loin) — mauvaises pratiques
+                        // c'est le rôle de Trivy plus loin) - mauvaises pratiques
                         // d'écriture (USER root implicite, secrets en ARG, etc.)
                         def checkovResult = sh(
                             script: """
@@ -173,7 +173,7 @@ spec:
                         )
                         archiveArtifacts artifacts: "checkov-report.json"
                         if (checkovResult != 0) {
-                            error("Checkov FAILED — Dockerfile non conforme, voir le rapport ci-dessus")
+                            error("Checkov FAILED - Dockerfile non conforme, voir le rapport ci-dessus")
                         }
                         echo "Checkov PASSED"
                     }
@@ -189,7 +189,7 @@ spec:
                         echo "Waiting for Docker daemon..."
                         for i in \$(seq 1 30); do
                             docker info > /dev/null 2>&1 && echo "Docker daemon ready" && break
-                            echo "Attempt \$i/30 — waiting 3s..."
+                            echo "Attempt \$i/30 - waiting 3s..."
                             sleep 3
                         done
                         docker info > /dev/null 2>&1 || (echo "Docker daemon not available after 90s" && exit 1)
@@ -212,7 +212,7 @@ spec:
                             sh "docker login ${HARBOR_URL} -u ${HARBOR_USER} -p ${HARBOR_PASS}"
 
                             if (dockerfileChanged == "true") {
-                                echo "Dockerfile modifié — rebuild de l'image"
+                                echo "Dockerfile modifié - rebuild de l'image"
                                 sh """
                                     docker build \
                                         -t ${env.FULL_IMAGE_VERSIONED} \
@@ -221,13 +221,13 @@ spec:
                                         .
                                 """
                             } else {
-                                echo "Dockerfile inchangé — pull depuis Harbor"
+                                echo "Dockerfile inchangé - pull depuis Harbor"
                                 def pullResult = sh(
                                     script: "docker pull ${env.FULL_IMAGE_LATEST}",
                                     returnStatus: true
                                 )
                                 if (pullResult != 0) {
-                                    echo "Image absente sur Harbor — rebuild"
+                                    echo "Image absente sur Harbor - rebuild"
                                     sh """
                                         docker build \
                                             -t ${env.FULL_IMAGE_VERSIONED} \
@@ -250,7 +250,7 @@ spec:
             steps {
                 container("trivy") {
                     script {
-                        // Rapport JSON toujours généré (succès ou échec) — exit-code 0
+                        // Rapport JSON toujours généré (succès ou échec) - exit-code 0
                         // ici, la décision fail/pass est prise par le 2e appel juste
                         // après (même scan, DB de vulnérabilités déjà en cache donc
                         // quasi instantané).
@@ -280,10 +280,10 @@ spec:
                         )
 
                         if (trivyResult != 0) {
-                            error("Trivy FAILED — vulnérabilités HIGH/CRITICAL détectées (voir trivy-report.json)")
+                            error("Trivy FAILED - vulnérabilités HIGH/CRITICAL détectées (voir trivy-report.json)")
                         }
 
-                        echo "Trivy PASSED — aucune vulnérabilité HIGH/CRITICAL"
+                        echo "Trivy PASSED - aucune vulnérabilité HIGH/CRITICAL"
                     }
                 }
             }
@@ -294,12 +294,12 @@ spec:
                 container("builder") {
                     script {
                         // Installé à la volée dans le conteneur builder (docker-cli,
-                        // Alpine) — plus simple que de spawn un container syft séparé
+                        // Alpine) - plus simple que de spawn un container syft séparé
                         // via "docker run" (qui ne partagerait pas le réseau du pod
                         // pour joindre le daemon DinD en localhost:2375).
                         sh "wget -qO- https://raw.githubusercontent.com/anchore/syft/main/install.sh | sh -s -- -b /usr/local/bin"
                         // "docker:" force la lecture depuis le daemon DinD (image pas
-                        // encore poussée sur Harbor à ce stade du pipeline) — syft lit
+                        // encore poussée sur Harbor à ce stade du pipeline) - syft lit
                         // DOCKER_HOST comme le ferait le CLI docker.
                         sh """
                             syft docker:${env.FULL_IMAGE_LATEST} \
@@ -362,7 +362,7 @@ spec:
                             ${env.FULL_IMAGE_LATEST} \
                             simulator ${BUILD_OUTPUT}
                     """
-                    echo "Simulator PASSED — binaire validé"
+                    echo "Simulator PASSED - binaire validé"
                 }
             }
         }
@@ -391,7 +391,7 @@ spec:
                 container("builder") {
                     script {
                         // Cosign ne parle qu'au registre (Harbor), pas au daemon Docker
-                        // — pas besoin d'un conteneur dédié avec DOCKER_HOST, juste le
+                        // - pas besoin d'un conteneur dédié avec DOCKER_HOST, juste le
                         // binaire (statique, tourne tel quel sur Alpine/musl).
                         sh "wget -qO /usr/local/bin/cosign https://github.com/sigstore/cosign/releases/latest/download/cosign-linux-amd64 && chmod +x /usr/local/bin/cosign"
                     }
@@ -434,7 +434,7 @@ spec:
             """
         }
         failure {
-            echo "Pipeline FAILED — voir les logs ci-dessus"
+            echo "Pipeline FAILED - voir les logs ci-dessus"
         }
         always {
             container("builder") {

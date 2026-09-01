@@ -1,9 +1,9 @@
-# firmware-poc — cas d'usage applicatif (Phase 4/6)
+# firmware-poc - cas d'usage applicatif (Phase 4/6)
 
 ## Quoi
 
 Un firmware fictif pour un sous-système satellite (acquisition de télémétrie,
-LED de statut, sortie UART), ciblant ARM Cortex-M — code C minimal
+LED de statut, sortie UART), ciblant ARM Cortex-M - code C minimal
 (`app/firmware-poc/src/`), plus un "simulateur" (`simulator/simulator.c`) qui
 valide le binaire produit (format ELF, taille, section exécutable) en guise
 de test d'intégration sans matériel réel.
@@ -12,7 +12,7 @@ de test d'intégration sans matériel réel.
 
 Le contexte réel (alternance dans une équipe infrastructure du secteur
 spatial/satellite, support à des développeurs de logiciel embarqué C) ne
-peut pas être démontré avec du vrai code ou de vrais outils — confidentialité
+peut pas être démontré avec du vrai code ou de vrais outils - confidentialité
 industrielle. Ce cas d'usage reproduit fidèlement le problème réel sans
 exposer quoi que ce soit de sensible : voir `docs/architecture.md`.
 
@@ -27,7 +27,7 @@ OS, non patchables sans casser les builds.
 
 Le `Jenkinsfile` unique (`app/firmware-poc/Jenkinsfile`) est **paramétré**
 (`VARIANT: legacy|modern`, cf. `docs/apps-stack.md`) plutôt que dupliqué en
-deux fichiers — les deux variantes tournent comme agents Kubernetes
+deux fichiers - les deux variantes tournent comme agents Kubernetes
 dynamiques sur le même cluster, à la demande, sans node dédié par OS : c'est
 la preuve concrète que Kubernetes résout le problème initial.
 
@@ -43,16 +43,16 @@ attestation SBOM). Détail complet des stages et des credentials :
 
 - **Source de vérité** : `app/firmware-poc/` dans ce repo (GitHub).
 - **GitLab** (`poc-ci/firmware-poc`) : simple miroir de démo, resynchronisé à
-  la demande via `make gitlab-init` (`scripts/gitlab-init.sh`) — force-push
+  la demande via `make gitlab-init` (`scripts/gitlab-init.sh`) - force-push
   d'un repo autonome à chaque appel, pas de lien d'historique avec GitHub.
   C'est GitLab qui déclenche Jenkins (webhook), pas GitHub.
 
-## Dockerfile — arbitrages sécurité (Checkov)
+## Dockerfile - arbitrages sécurité (Checkov)
 
 Les deux Dockerfiles tournent en utilisateur non-root (UID 1000) et déclarent
-un `HEALTHCHECK` minimal (vérifie que `gcc` reste utilisable) — corrige les 2
+un `HEALTHCHECK` minimal (vérifie que `gcc` reste utilisable) - corrige les 2
 findings Checkov (`CKV_DOCKER_2`, `CKV_DOCKER_3`) détectés dès la première
 exécution du pipeline. `/workspace` est en `chmod 1777` (comme `/tmp`) car
 c'est un bind-mount du workspace Jenkins (créé par le checkout git, exécuté
-en root côté conteneur `builder`) — sans ça, l'utilisateur non-root du
+en root côté conteneur `builder`) - sans ça, l'utilisateur non-root du
 conteneur de build ne pourrait pas y écrire.

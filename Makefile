@@ -1,5 +1,5 @@
 # ──────────────────────────────────────────────────────────
-# Makefile — rncp-bc05
+# Makefile - rncp-bc05
 # Pilotage Terraform (cluster/vault) & Ansible depuis la machine de dev
 # ──────────────────────────────────────────────────────────
 
@@ -13,7 +13,7 @@ SSH_KEY          := ~/.ssh/id_ed25519-scw
 COSIGN_KEY_FILE  := $(HOME)/.cosign/rncp-bc05/cosign.key
 
 # ══════════════════════════════════════════════════════════
-#  TERRAFORM — cluster
+#  TERRAFORM - cluster
 # ══════════════════════════════════════════════════════════
 
 .PHONY: tf-cluster-init tf-cluster-plan tf-cluster-apply tf-cluster-destroy tf-cluster-output
@@ -39,12 +39,12 @@ tf-cluster-output:
 	cd $(TF_CLUSTER_DIR) && terraform output
 
 # ══════════════════════════════════════════════════════════
-#  TERRAFORM — vault
+#  TERRAFORM - vault
 # ══════════════════════════════════════════════════════════
 
 .PHONY: tf-vault-init tf-vault-plan tf-vault-apply tf-vault-destroy tf-vault-output
 
-## Initialiser Terraform (vault) — doit venir après tf-cluster-apply
+## Initialiser Terraform (vault) - doit venir après tf-cluster-apply
 tf-vault-init:
 	cd $(TF_VAULT_DIR) && terraform init
 
@@ -91,7 +91,7 @@ ansible-vault: ansible-inventory ansible-inventory-vault
 	cd $(ANSIBLE_DIR) && ansible-playbook bootstrap-vault.yml
 
 # ══════════════════════════════════════════════════════════
-#  KUBERNETES — fondation cluster (GitOps, pas d'Ansible)
+#  KUBERNETES - fondation cluster (GitOps, pas d'Ansible)
 # ══════════════════════════════════════════════════════════
 
 .PHONY: kubeconfig nodes k8s-secrets k8s-ccm k8s-bootstrap-argocd k8s-apps-secrets k8s-monitoring-secrets gitlab-init harbor-init jenkins-credentials
@@ -128,10 +128,10 @@ k8s-secrets:
 		--dry-run=client -o yaml | KUBECONFIG=$(KUBECONFIG_FILE) kubectl apply -f -
 
 ## Créer les Secrets admin de la stack applicative (Harbor, GitLab, SonarQube,
-## Jenkins) — mots de passe générés aléatoirement, jamais committés.
+## Jenkins) - mots de passe générés aléatoirement, jamais committés.
 ## IDEMPOTENT : ne touche jamais un secret déjà présent (kubectl create, pas
 ## d'apply/overwrite). GitLab et Harbor ne lisent ce mot de passe qu'une seule
-## fois, à leur tout premier bootstrap (migration DB) — le regénérer après
+## fois, à leur tout premier bootstrap (migration DB) - le regénérer après
 ## coup désynchronise le secret de la vraie valeur en base, sans erreur
 ## visible avant un login qui échoue. Donc relancer cette cible à tout moment
 ## (ex. après un `kubectl delete secret` volontaire, ou pour compléter des
@@ -141,7 +141,7 @@ k8s-apps-secrets:
 		KUBECONFIG=$(KUBECONFIG_FILE) kubectl create namespace $$ns --dry-run=client -o yaml | KUBECONFIG=$(KUBECONFIG_FILE) kubectl apply -f - ; \
 	done
 	@KUBECONFIG=$(KUBECONFIG_FILE) kubectl get secret harbor-admin-password -n harbor >/dev/null 2>&1 && \
-		echo "harbor-admin-password existe déjà — inchangé" || \
+		echo "harbor-admin-password existe déjà - inchangé" || \
 		{ HARBOR_PW=$$(openssl rand -base64 24 | tr -d '=+/\n' | cut -c1-24); \
 		  HARBOR_SECRETKEY=$$(openssl rand -base64 24 | tr -d '=+/\n' | cut -c1-16); \
 		  KUBECONFIG=$(KUBECONFIG_FILE) kubectl create secret generic harbor-admin-password -n harbor \
@@ -149,43 +149,43 @@ k8s-apps-secrets:
 			--from-literal=secretKey="$$HARBOR_SECRETKEY"; \
 		  echo "Harbor (admin)   : $$HARBOR_PW"; }
 	@KUBECONFIG=$(KUBECONFIG_FILE) kubectl get secret gitlab-initial-root-password -n gitlab >/dev/null 2>&1 && \
-		echo "gitlab-initial-root-password existe déjà — inchangé" || \
+		echo "gitlab-initial-root-password existe déjà - inchangé" || \
 		{ GITLAB_PW=$$(openssl rand -base64 24 | tr -d '=+/\n' | cut -c1-24); \
 		  KUBECONFIG=$(KUBECONFIG_FILE) kubectl create secret generic gitlab-initial-root-password -n gitlab \
 			--from-literal=password="$$GITLAB_PW"; \
 		  echo "GitLab (root)    : $$GITLAB_PW"; }
 	@KUBECONFIG=$(KUBECONFIG_FILE) kubectl get secret sonarqube-secrets -n sonarqube >/dev/null 2>&1 && \
-		echo "sonarqube-secrets existe déjà — inchangé" || \
+		echo "sonarqube-secrets existe déjà - inchangé" || \
 		{ SONARQUBE_PASSCODE=$$(openssl rand -base64 24 | tr -d '=+/\n' | cut -c1-24); \
 		  KUBECONFIG=$(KUBECONFIG_FILE) kubectl create secret generic sonarqube-secrets -n sonarqube \
 			--from-literal=monitoringPasscode="$$SONARQUBE_PASSCODE"; \
 		  echo "SonarQube        : admin/admin (changement forcé au 1er login)"; }
 	@KUBECONFIG=$(KUBECONFIG_FILE) kubectl get secret jenkins-admin-secret -n jenkins >/dev/null 2>&1 && \
-		echo "jenkins-admin-secret existe déjà — inchangé" || \
+		echo "jenkins-admin-secret existe déjà - inchangé" || \
 		{ JENKINS_PW=$$(openssl rand -base64 24 | tr -d '=+/\n' | cut -c1-24); \
 		  KUBECONFIG=$(KUBECONFIG_FILE) kubectl create secret generic jenkins-admin-secret -n jenkins \
 			--from-literal=jenkins-admin-user="admin" \
 			--from-literal=jenkins-admin-password="$$JENKINS_PW"; \
 		  echo "Jenkins (admin)  : $$JENKINS_PW"; }
 	@echo ""
-	@echo "Mots de passe (générés ci-dessus, ou déjà en place) — jamais committés."
+	@echo "Mots de passe (générés ci-dessus, ou déjà en place) - jamais committés."
 	@echo "Pour forcer une rotation volontaire d'un secret : kubectl delete secret <nom> -n <ns>"
 	@echo "puis relancer 'make k8s-apps-secrets' (et resynchroniser l'app côté GitLab/Harbor si"
 	@echo "elle a déjà consommé l'ancien, cf. docs/apps-stack.md § dépannage)."
 
-## Créer le Secret admin Grafana (Phase 5 — observabilité). IDEMPOTENT, même
+## Créer le Secret admin Grafana (Phase 5 - observabilité). IDEMPOTENT, même
 ## pattern que k8s-apps-secrets.
 k8s-monitoring-secrets:
 	@KUBECONFIG=$(KUBECONFIG_FILE) kubectl create namespace monitoring --dry-run=client -o yaml | KUBECONFIG=$(KUBECONFIG_FILE) kubectl apply -f -
 	@KUBECONFIG=$(KUBECONFIG_FILE) kubectl get secret grafana-admin-secret -n monitoring >/dev/null 2>&1 && \
-		echo "grafana-admin-secret existe déjà — inchangé" || \
+		echo "grafana-admin-secret existe déjà - inchangé" || \
 		{ GRAFANA_PW=$$(openssl rand -base64 24 | tr -d '=+/\n' | cut -c1-24); \
 		  KUBECONFIG=$(KUBECONFIG_FILE) kubectl create secret generic grafana-admin-secret -n monitoring \
 			--from-literal=admin-user="admin" \
 			--from-literal=admin-password="$$GRAFANA_PW"; \
 		  echo "Grafana (admin)  : $$GRAFANA_PW"; }
 
-## Déployer le CCM Scaleway — OBLIGATOIRE avant ArgoCD. RKE2 (cloud-provider-name:
+## Déployer le CCM Scaleway - OBLIGATOIRE avant ArgoCD. RKE2 (cloud-provider-name:
 ## external) tainte tous les nodes node.cloudprovider.kubernetes.io/uninitialized
 ## tant qu'aucun CCM n'a tourné ; seul le CCM tolère ce taint, tout le reste
 ## (y compris ArgoCD) reste Pending tant qu'il n'a pas été levé.
@@ -209,21 +209,21 @@ k8s-bootstrap-argocd: k8s-ccm
 	@echo "ArgoCD admin password :"
 	@KUBECONFIG=$(KUBECONFIG_FILE) kubectl -n argocd get secret argocd-initial-admin-secret -o jsonpath="{.data.password}" | base64 -d; echo
 
-## Bootstrap du projet GitLab firmware-poc (Phase 4/6) — crée le groupe/projet
+## Bootstrap du projet GitLab firmware-poc (Phase 4/6) - crée le groupe/projet
 ## via l'API GitLab (idempotent) et pousse app/firmware-poc/ (source de vérité
 ## sur GitHub) comme repo autonome. À lancer une fois que GitLab est Healthy
 ## (make k8s-apps-secrets déjà exécuté). Voir scripts/gitlab-init.sh.
 gitlab-init:
 	KUBECONFIG=$(KUBECONFIG_FILE) ./scripts/gitlab-init.sh
 
-## Créer le projet Harbor "poc-ci" (idempotent) — sans ça, un docker push
+## Créer le projet Harbor "poc-ci" (idempotent) - sans ça, un docker push
 ## échoue avec "unauthorized: project poc-ci not found". Harbor ne crée que
 ## le projet "library" par défaut.
 harbor-init:
 	@HARBOR_PW=$$(KUBECONFIG=$(KUBECONFIG_FILE) kubectl get secret harbor-admin-password -n harbor -o jsonpath='{.data.HARBOR_ADMIN_PASSWORD}' | base64 -d); \
 	EXISTS=$$(curl -sk -u "admin:$$HARBOR_PW" https://harbor.k8s.yplank.fr/api/v2.0/projects/poc-ci -o /dev/null -w '%{http_code}'); \
 	if [ "$$EXISTS" = "200" ]; then \
-		echo "Projet Harbor poc-ci existe déjà — inchangé"; \
+		echo "Projet Harbor poc-ci existe déjà - inchangé"; \
 	else \
 		curl -sk -u "admin:$$HARBOR_PW" -X POST https://harbor.k8s.yplank.fr/api/v2.0/projects \
 			-H "Content-Type: application/json" \
@@ -232,17 +232,17 @@ harbor-init:
 	fi
 
 ## Credentials Jenkins (Harbor, GitLab, Cosign) via kubernetes-credentials-provider
-## — Secrets K8s labellisés jenkins.io/credentials-type, découverts automatiquement
+## - Secrets K8s labellisés jenkins.io/credentials-type, découverts automatiquement
 ## par Jenkins (namespace jenkins), aucune valeur en clair dans le repo, aucun
 ## clic dans l'UI. Crée aussi gitlab-webhook-token (secret partagé avec le
-## webhook GitLab, cf. scripts/gitlab-init.sh — relancer `make gitlab-init`
+## webhook GitLab, cf. scripts/gitlab-init.sh - relancer `make gitlab-init`
 ## après celle-ci pour que le webhook soit créé côté GitLab). IDEMPOTENT (comme
 ## k8s-apps-secrets). Le token SonarQube reste une étape manuelle (cf.
 ## docs/apps-stack.md) : pas de mot de passe admin à scripter avant le
 ## changement forcé au premier login.
 jenkins-credentials:
 	@KUBECONFIG=$(KUBECONFIG_FILE) kubectl get secret harbor-credentials -n jenkins >/dev/null 2>&1 && \
-		echo "harbor-credentials existe déjà — inchangé" || \
+		echo "harbor-credentials existe déjà - inchangé" || \
 		{ HARBOR_PW=$$(KUBECONFIG=$(KUBECONFIG_FILE) kubectl get secret harbor-admin-password -n harbor -o jsonpath='{.data.HARBOR_ADMIN_PASSWORD}' | base64 -d); \
 		  KUBECONFIG=$(KUBECONFIG_FILE) kubectl create secret generic harbor-credentials -n jenkins \
 			--type=kubernetes.io/basic-auth \
@@ -252,7 +252,7 @@ jenkins-credentials:
 		  KUBECONFIG=$(KUBECONFIG_FILE) kubectl annotate secret harbor-credentials -n jenkins jenkins.io/credentials-description="Harbor admin (auto, make jenkins-credentials)"; \
 		  echo "harbor-credentials créé"; }
 	@KUBECONFIG=$(KUBECONFIG_FILE) kubectl get secret gitlab-credentials -n jenkins >/dev/null 2>&1 && \
-		echo "gitlab-credentials existe déjà — inchangé" || \
+		echo "gitlab-credentials existe déjà - inchangé" || \
 		{ GITLAB_PW=$$(KUBECONFIG=$(KUBECONFIG_FILE) kubectl get secret gitlab-initial-root-password -n gitlab -o jsonpath='{.data.password}' | base64 -d); \
 		  KUBECONFIG=$(KUBECONFIG_FILE) kubectl create secret generic gitlab-credentials -n jenkins \
 			--type=kubernetes.io/basic-auth \
@@ -262,14 +262,14 @@ jenkins-credentials:
 		  KUBECONFIG=$(KUBECONFIG_FILE) kubectl annotate secret gitlab-credentials -n jenkins jenkins.io/credentials-description="GitLab root (auto, make jenkins-credentials)"; \
 		  echo "gitlab-credentials créé"; }
 	@KUBECONFIG=$(KUBECONFIG_FILE) kubectl get secret gitlab-webhook-token -n jenkins >/dev/null 2>&1 && \
-		echo "gitlab-webhook-token existe déjà — inchangé" || \
+		echo "gitlab-webhook-token existe déjà - inchangé" || \
 		{ WEBHOOK_TOKEN=$$(openssl rand -hex 20); \
 		  KUBECONFIG=$(KUBECONFIG_FILE) kubectl create secret generic gitlab-webhook-token -n jenkins \
 			--from-literal=token="$$WEBHOOK_TOKEN"; \
 		  echo "gitlab-webhook-token créé"; }
 	@KUBECONFIG=$(KUBECONFIG_FILE) kubectl get secret cosign-private-key -n jenkins >/dev/null 2>&1 && \
-		echo "cosign-private-key existe déjà — inchangé" || \
-		{ test -f $(COSIGN_KEY_FILE) || { echo "COSIGN_KEY_FILE introuvable ($(COSIGN_KEY_FILE)) — voir docs/cosign.md"; exit 1; }; \
+		echo "cosign-private-key existe déjà - inchangé" || \
+		{ test -f $(COSIGN_KEY_FILE) || { echo "COSIGN_KEY_FILE introuvable ($(COSIGN_KEY_FILE)) - voir docs/cosign.md"; exit 1; }; \
 		  KUBECONFIG=$(KUBECONFIG_FILE) kubectl create secret generic cosign-private-key -n jenkins \
 			--from-file=text=$(COSIGN_KEY_FILE); \
 		  KUBECONFIG=$(KUBECONFIG_FILE) kubectl label secret cosign-private-key -n jenkins jenkins.io/credentials-type=secretText; \
@@ -278,7 +278,7 @@ jenkins-credentials:
 	@echo ""
 	@echo "Reste à faire manuellement : générer un token SonarQube (admin -> My"
 	@echo "Account -> Security -> Generate Token) et créer le secret sonarqube-token"
-	@echo "(ns jenkins, type secretText) — cf. docs/apps-stack.md."
+	@echo "(ns jenkins, type secretText) - cf. docs/apps-stack.md."
 
 # ══════════════════════════════════════════════════════════
 #  UTILITAIRES
@@ -296,7 +296,7 @@ clean:
 ## Afficher cette aide
 help:
 	@echo ""
-	@echo "rncp-bc05 — Commandes disponibles"
+	@echo "rncp-bc05 - Commandes disponibles"
 	@echo "══════════════════════════════════════════"
 	@echo ""
 	@echo "  TERRAFORM CLUSTER"
@@ -307,7 +307,7 @@ help:
 	@echo "    make tf-cluster-output    terraform output (cluster)"
 	@echo ""
 	@echo "  TERRAFORM VAULT"
-	@echo "    make tf-vault-init        terraform init (vault) — après tf-cluster-apply"
+	@echo "    make tf-vault-init        terraform init (vault) - après tf-cluster-apply"
 	@echo "    make tf-vault-plan        terraform plan (vault)"
 	@echo "    make tf-vault-apply       terraform apply (vault)"
 	@echo "    make tf-vault-destroy     terraform destroy (vault)"
@@ -320,7 +320,7 @@ help:
 	@echo "    make ansible-k8s              Bootstrap complet K8s/RKE2"
 	@echo "    make ansible-vault            Bootstrap complet Vault (sans init/unseal)"
 	@echo ""
-	@echo "  KUBERNETES — fondation cluster (GitOps, cf. docs/cluster-foundation.md)"
+	@echo "  KUBERNETES - fondation cluster (GitOps, cf. docs/cluster-foundation.md)"
 	@echo "    make kubeconfig           Récupérer le kubeconfig"
 	@echo "    make nodes                Lister les nodes"
 	@echo "    make k8s-secrets          Créer les Secrets (Scaleway CCM, OVH DNS-01)"

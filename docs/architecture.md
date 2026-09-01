@@ -1,4 +1,4 @@
-# Architecture — vue d'ensemble
+# Architecture - vue d'ensemble
 
 ## Contexte et problématique
 
@@ -9,14 +9,14 @@ Ubuntu 18.04/20.04) : ça impose des workstations et des nodes Jenkins dédiés,
 figés par OS, non patchables sans casser les builds.
 
 **Objectif du POC** : dockeriser ces environnements de build et les orchestrer
-sur Kubernetes, avec une chaîne CI/CD sécurisée (DevSecOps) de bout en bout —
+sur Kubernetes, avec une chaîne CI/CD sécurisée (DevSecOps) de bout en bout -
 tout en gardant un scope tenable pour une démo de 5 minutes devant jury.
 
 Le cas d'usage applicatif (`app/firmware-poc/`) est **volontairement
 fictif** : le code réel et les outils de l'entreprise ne peuvent pas sortir du
 cadre professionnel (confidentialité industrielle). Le firmware C ciblant ARM
 Cortex-M reproduit fidèlement le problème réel (deux toolchains, deux OS)
-sans exposer quoi que ce soit de sensible — cf. `docs/firmware-poc.md`.
+sans exposer quoi que ce soit de sensible - cf. `docs/firmware-poc.md`.
 
 ## Schéma global
 
@@ -62,15 +62,15 @@ git push (GitLab, projet poc-ci/firmware-poc)
 Jenkins (agent Kubernetes dynamique, legacy Ubuntu 18.04/gcc-7
          ou modern Ubuntu 22.04/gcc-12 selon paramètre VARIANT)
    ├─ Checkout
-   ├─ Checkov       — lint sécurité du Dockerfile
-   ├─ Build image   — si Dockerfile modifié, sinon pull Harbor
-   ├─ Trivy         — scan vulnérabilités, FAIL sur HIGH/CRITICAL
-   ├─ Syft          — génère le SBOM (SPDX)
-   ├─ Build firmware — compilation dans le conteneur (legacy ou modern)
-   ├─ SonarQube     — analyse statique + Quality Gate
-   ├─ Simulateur    — validation du binaire ELF produit
-   ├─ Push Harbor   — image versionnée + latest
-   └─ Cosign        — signe l'image + atteste le SBOM
+   ├─ Checkov       - lint sécurité du Dockerfile
+   ├─ Build image   - si Dockerfile modifié, sinon pull Harbor
+   ├─ Trivy         - scan vulnérabilités, FAIL sur HIGH/CRITICAL
+   ├─ Syft          - génère le SBOM (SPDX)
+   ├─ Build firmware - compilation dans le conteneur (legacy ou modern)
+   ├─ SonarQube     - analyse statique + Quality Gate
+   ├─ Simulateur    - validation du binaire ELF produit
+   ├─ Push Harbor   - image versionnée + latest
+   └─ Cosign        - signe l'image + atteste le SBOM
 ```
 
 Détail complet : `docs/firmware-poc.md` et `docs/apps-stack.md`.
@@ -83,15 +83,15 @@ Détail complet : `docs/firmware-poc.md` et `docs/apps-stack.md`.
   réseau), NetworkPolicy L7.
 - **Pas de Longhorn / débat stockage** : hors scope de démo, choix
   d'implémentation silencieux (`local-path-provisioner`).
-- **Vault hors cluster** (VM dédiée) : éviter la dépendance circulaire — si le
+- **Vault hors cluster** (VM dédiée) : éviter la dépendance circulaire - si le
   cluster tombe, il faut pouvoir accéder aux secrets pour le réparer.
 - **Scaleway (cloud public)** plutôt qu'un homelab : garantit la disponibilité
   le jour J. L'IaC (Terraform + Ansible) est identique à ce qui serait
   déployé on-premise, seul le provider change.
-- **Cas d'usage fictif** : confidentialité industrielle — cf. ci-dessus.
+- **Cas d'usage fictif** : confidentialité industrielle - cf. ci-dessus.
 - **Argument GitOps** : le cluster peut être détruit et recréé
   (`docs/rebuild-runbook.md`), toute la stack applicative revient
-  automatiquement sans intervention manuelle — preuve concrète de
+  automatiquement sans intervention manuelle - preuve concrète de
   reproductibilité et de résilience de l'approche IaC + GitOps.
 
 ## Stack technique
@@ -112,7 +112,7 @@ Détail complet : `docs/firmware-poc.md` et `docs/apps-stack.md`.
 | Monitoring | kube-prometheus-stack (Prometheus + Grafana) | Métriques cluster et applications |
 | Logs | Loki + Promtail | Centralisation des logs, audit trail |
 
-## Sécurité / DevSecOps — état des lieux
+## Sécurité / DevSecOps - état des lieux
 
 | Brique | Statut | Détail |
 |---|---|---|
@@ -123,8 +123,8 @@ Détail complet : `docs/firmware-poc.md` et `docs/apps-stack.md`.
 | SonarQube | Implémenté | Déjà en place chez le client, gardé dans le POC |
 | RBAC K8s | Implémenté | Namespaces séparés par app, ServiceAccounts scopés |
 | NetworkPolicy Cilium | Implémenté (silencieux) | Isolation inter-namespaces par défaut de Cilium, non démontrée activement |
-| Vault | Implémenté (partiel) | VM dédiée, single-node raft, unseal manuel (limite POC assumée) — secrets KV gérés manuellement, pas d'auth K8s dynamique (cf. `docs/evolutions-possibles.md`) |
-| Kyverno | Non implémenté | Admission control envisagé (`verifyImages` sur signature Cosign) — cf. `docs/evolutions-possibles.md` |
+| Vault | Implémenté (partiel) | VM dédiée, single-node raft, unseal manuel (limite POC assumée) - secrets KV gérés manuellement, pas d'auth K8s dynamique (cf. `docs/evolutions-possibles.md`) |
+| Kyverno | Non implémenté | Admission control envisagé (`verifyImages` sur signature Cosign) - cf. `docs/evolutions-possibles.md` |
 | ESO (External Secrets Operator) | Non implémenté | cf. `docs/evolutions-possibles.md` |
 | Gitleaks | Abandonné | Pas de scan de secrets dans le code applicatif dans ce POC |
 
@@ -133,10 +133,10 @@ Détail complet : `docs/firmware-poc.md` et `docs/apps-stack.md`.
 - **Pourquoi Kyverno n'est pas implémenté alors que Cosign signe déjà tout ?**
   Cosign sécurise la sortie du pipeline (preuve cryptographique), Kyverno
   sécuriserait l'entrée du cluster (bloquer un `kubectl apply` manuel qui
-  contourne le pipeline) — defense in depth. Piste connue, non implémentée
+  contourne le pipeline) - defense in depth. Piste connue, non implémentée
   par arbitrage de risque/valeur pour un POC de démo 5 minutes (cf.
   `docs/evolutions-possibles.md`).
-- **Pourquoi Vault n'a pas d'auth K8s dynamique ?** Même arbitrage — la
+- **Pourquoi Vault n'a pas d'auth K8s dynamique ?** Même arbitrage - la
   reachability réseau et la gestion des tokens de ServiceAccount sur K8s
   récent n'avaient jamais été validées sur ce cluster ; le risque de debug
   supplémentaire sur une brique périphérique (non démontrée à l'oral)
@@ -144,5 +144,5 @@ Détail complet : `docs/firmware-poc.md` et `docs/apps-stack.md`.
 - **Pourquoi un use-case fictif ?** Confidentialité industrielle.
 - **Pourquoi pas de mutualisation multi-départements (scénario "Centre de
   Services") ?** Trop lourd à poser et défendre en 45 minutes pour la valeur
-  ajoutée obtenue — le fil conducteur reste le contexte réel de
+  ajoutée obtenue - le fil conducteur reste le contexte réel de
   l'alternance (une équipe, un périmètre).

@@ -9,19 +9,19 @@
 # - Clone app/firmware-poc/ depuis GitHub (source de vérité) et le pousse sur
 #   GitLab comme repo autonome (un seul commit, pas d'historique GitHub)
 # - Configure le webhook GitLab -> Jenkins (idempotent, skip si le secret
-#   gitlab-webhook-token n'existe pas encore — cf. make jenkins-credentials)
+#   gitlab-webhook-token n'existe pas encore - cf. make jenkins-credentials)
 #
 # Usage :
 #   make gitlab-init
 #   (ou directement : ./scripts/gitlab-init.sh)
-#   Rejouable à volonté (idempotent) — utile pour ajouter le webhook une fois
+#   Rejouable à volonté (idempotent) - utile pour ajouter le webhook une fois
 #   que 'make jenkins-credentials' a créé le token, sans revalider le reste.
 #
 # Prérequis :
 #   - KUBECONFIG configuré, cluster up, GitLab déployé (layer-01-apps Healthy)
 #   - curl, git, python3 installés
 #
-# Adapté de l'ancien repo infra-rncp (docker/firmware-poc/gitlab-init.sh) —
+# Adapté de l'ancien repo infra-rncp (docker/firmware-poc/gitlab-init.sh) -
 # même logique, adaptée à rncp_bloc05 (repo GitHub, nom de secret, URL GitLab).
 # =============================================================================
 
@@ -107,7 +107,7 @@ create_api_token() {
 }
 
 gitlab_api() {
-    # Wrapper curl pour l'API GitLab — usage : gitlab_api GET /api/v4/groups
+    # Wrapper curl pour l'API GitLab - usage : gitlab_api GET /api/v4/groups
     local method="$1"
     local endpoint="$2"
     shift 2
@@ -169,7 +169,7 @@ create_project() {
 
 push_firmware_code() {
     step "Pushing firmware source code to GitLab..."
-    info "Force push — syncing GitLab with GitHub sources (source de vérité)"
+    info "Force push - syncing GitLab with GitHub sources (source de vérité)"
 
     local tmpdir
     tmpdir=$(mktemp -d)
@@ -192,7 +192,7 @@ push_firmware_code() {
     git checkout -b "${GITLAB_DEFAULT_BRANCH}" --quiet
 
     git add .
-    git commit -m "feat: initial firmware-poc — CI/CD POC" --quiet
+    git commit -m "feat: initial firmware-poc - CI/CD POC" --quiet
 
     local remote_url
     remote_url="${GITLAB_URL/https:\/\//https://root:${GITLAB_ROOT_PASSWORD}@}/${GITLAB_GROUP}/${GITLAB_PROJECT}.git"
@@ -216,7 +216,7 @@ create_webhook() {
     webhook_token=$(kubectl get secret gitlab-webhook-token -n jenkins -o jsonpath='{.data.token}' 2>/dev/null | base64 -d || true)
 
     if [ -z "$webhook_token" ]; then
-        warn "Secret gitlab-webhook-token introuvable (ns jenkins) — webhook non configuré."
+        warn "Secret gitlab-webhook-token introuvable (ns jenkins) - webhook non configuré."
         warn "Lancer 'make jenkins-credentials' puis relancer 'make gitlab-init'."
         return
     fi
@@ -263,7 +263,7 @@ print_summary() {
 
 echo ""
 echo "=============================================="
-echo "  gitlab-init.sh — rncp_bloc05 CI/CD"
+echo "  gitlab-init.sh - rncp_bloc05 CI/CD"
 echo "=============================================="
 
 get_root_password

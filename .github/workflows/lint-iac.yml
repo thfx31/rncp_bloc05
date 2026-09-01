@@ -35,7 +35,7 @@ jobs:
           curl -sL https://raw.githubusercontent.com/aquasecurity/tfsec/master/scripts/install_linux.sh | bash
 
       - name: tfsec
-        # soft_fail au départ (cf. poc-vs-prod.md) — le temps de trier les
+        # soft_fail au départ (cf. poc-vs-prod.md) - le temps de trier les
         # faux positifs avant de passer en hard-fail
         continue-on-error: true
         run: |
@@ -71,7 +71,7 @@ jobs:
 
       - name: ansible-lint
         # soft_fail au départ, comme tfsec/checkov ci-dessus (cf. poc-vs-prod.md)
-        # — le temps de trier les faux positifs avant de passer en hard-fail
+        # - le temps de trier les faux positifs avant de passer en hard-fail
         continue-on-error: true
         run: |
           pip install ansible-lint
