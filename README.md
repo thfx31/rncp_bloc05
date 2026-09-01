@@ -105,4 +105,5 @@ rncp_bloc05/
 | [`docs/monitoring.md`](docs/monitoring.md) | Observabilité (`02-observability/`), dashboards de démo |
 | [`docs/firmware-poc.md`](docs/firmware-poc.md) | Cas d'usage applicatif, legacy vs modern |
 | [`docs/cosign.md`](docs/cosign.md) | Signature d'images |
+| [`docs/sonarqube-cxx-plugin.md`](docs/sonarqube-cxx-plugin.md) | Plugin C/C++ (sonar-cxx), profil qualité, Quality Gate |
 | [`docs/checkov-tfsec.md`](docs/checkov-tfsec.md) | Scan statique IaC (GitHub Actions) |

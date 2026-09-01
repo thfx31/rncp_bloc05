@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<results version="2">
+    <cppcheck version="2.13.0"/>
+    <errors>
+        <error id="unusedFunction" severity="style" msg="The function &apos;systick_handler&apos; is never used." verbose="The function &apos;systick_handler&apos; is never used." cwe="561">
+            <location file="src/main.c" line="25" column="0"/>
+            <symbol>systick_handler</symbol>
+        </error>
+    </errors>
+</results>

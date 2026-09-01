@@ -15,10 +15,11 @@
 //   4. Trivy scan        - scan de vulnérabilités, FAIL si HIGH/CRITICAL
 //   5. Syft SBOM         - inventaire des paquets de l'image (SPDX)
 //   6. Build firmware    - compilation dans le conteneur (gcc-7 legacy / gcc-12 modern)
-//   7. SonarQube         - analyse statique + Quality Gate
-//   8. Simulator         - validation ELF du binaire produit
-//   9. Push Harbor       - pousse l'image validée
-//  10. Cosign sign       - signe l'image poussée + atteste le SBOM
+//   7. Cppcheck scan     - analyse statique du code C, alimente SonarQube (plugin sonar-cxx)
+//   8. SonarQube         - analyse statique + Quality Gate (cf. docs/sonarqube-cxx-plugin.md)
+//   9. Simulator         - validation ELF du binaire produit
+//  10. Push Harbor       - pousse l'image validée
+//  11. Cosign sign       - signe l'image poussée + atteste le SBOM
 //
 // Prérequis Jenkins (Credentials, auto-découverts via kubernetes-credentials-
 // provider - cf. docs/apps-stack.md, aucune valeur en clair ici) :
@@ -100,6 +101,18 @@ spec:
     # 3.3.6.
     - name: checkov
       image: bridgecrew/checkov:3.3.6
+      command: ["cat"]
+      tty: true
+      volumeMounts:
+        - name: workspace-volume
+          mountPath: /home/jenkins/agent
+    # Conteneur dédié Cppcheck (analyse statique du code C - alimente les
+    # règles d'import du plugin SonarQube sonar-cxx, cf. docs/sonarqube-cxx-plugin.md).
+    # Pas d'image Docker Hub officielle/fiable pour cppcheck - installé à la
+    # volée via apt sur une base Ubuntu LTS pinnée (même version que celle
+    # validée manuellement : cppcheck 2.13.0 sur ubuntu:24.04).
+    - name: cppcheck
+      image: ubuntu:24.04
       command: ["cat"]
       tty: true
       volumeMounts:
@@ -328,6 +341,21 @@ spec:
             }
         }
 
+        stage("Cppcheck scan") {
+            steps {
+                container("cppcheck") {
+                    sh """
+                        apt-get update -qq && apt-get install -y -qq cppcheck > /dev/null
+                        cppcheck --enable=warning,style,performance,portability,unusedFunction \
+                            --suppress=missingIncludeSystem --suppress=checkersReport \
+                            --xml --xml-version=2 -I include src 2> cppcheck-report.xml
+                    """
+                    archiveArtifacts artifacts: "cppcheck-report.xml"
+                    echo "Cppcheck terminé : cppcheck-report.xml"
+                }
+            }
+        }
+
         stage("SonarQube analysis") {
             steps {
                 container("builder") {
@@ -340,13 +368,17 @@ spec:
                                 sonarsource/sonar-scanner-cli:latest \
                                 -Dsonar.projectKey=${SONAR_PROJECT_KEY} \
                                 -Dsonar.projectName="Firmware POC" \
-                                -Dsonar.sources=/usr/src/src \
-                                -Dsonar.language=c \
+                                -Dsonar.sources=/usr/src/src,/usr/src/include \
+                                -Dsonar.cxx.file.suffixes=.c,.h \
+                                -Dsonar.cxx.cppcheck.reportPaths=/usr/src/cppcheck-report.xml \
                                 -Dsonar.qualitygate.wait=true
                         """
                     }
                     // Pas d'artefact local : le "rapport" est le dashboard SonarQube
                     // lui-même (résultats poussés directement sur le serveur).
+                    // Le plugin Community C/C++ (sonar-cxx) et le profil qualité/Quality
+                    // Gate associés sont installés/configurés à la main sur le serveur -
+                    // cf. docs/sonarqube-cxx-plugin.md (pas géré par le Helm chart).
                     echo "Rapport SonarQube : ${SONAR_HOST_URL}/dashboard?id=${SONAR_PROJECT_KEY}"
                 }
             }
