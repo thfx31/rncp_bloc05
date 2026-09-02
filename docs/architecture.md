@@ -2,21 +2,19 @@
 
 ## Contexte et problématique
 
-Thomas est en alternance dans une équipe infrastructure d'une entreprise du
-secteur spatial/satellite, en support à des développeurs de logiciel embarqué
-C. Les toolchains et simulateurs de build dépendent d'OS obsolètes (CentOS 7,
+Proposition d'un cluster K8S "pilote" représentatif d'une prodution legacy (machines virtuelles multi OS).
+Les toolchains et simulateurs de build dépendent d'OS obsolètes (CentOS 7,
 Ubuntu 18.04/20.04) : ça impose des workstations et des nodes Jenkins dédiés,
-figés par OS, non patchables sans casser les builds.
+figés par OS. La conséquence est une maintenance lourde et non durable.
 
 **Objectif du POC** : dockeriser ces environnements de build et les orchestrer
-sur Kubernetes, avec une chaîne CI/CD sécurisée (DevSecOps) de bout en bout -
-tout en gardant un scope tenable pour une démo de 5 minutes devant jury.
+sur Kubernetes, avec une chaîne CI/CD sécurisée (DevSecOps) de bout en bout.
 
 Le cas d'usage applicatif (`app/firmware-poc/`) est **volontairement
 fictif** : le code réel et les outils de l'entreprise ne peuvent pas sortir du
 cadre professionnel (confidentialité industrielle). Le firmware C ciblant ARM
 Cortex-M reproduit fidèlement le problème réel (deux toolchains, deux OS)
-sans exposer quoi que ce soit de sensible - cf. `docs/firmware-poc.md`.
+ - cf. `docs/firmware-poc.md`.
 
 ## Schéma global
 
@@ -29,28 +27,28 @@ sans exposer quoi que ce soit de sensible - cf. `docs/firmware-poc.md`.
                                         │ make (Terraform apply / Ansible)
                                         ▼
         ┌───────────────────────────────────────────────────────────┐
-        │                  Scaleway (cloud public)                   │
-        │                                                             │
+        │                  Scaleway (cloud public)                  │
+        │                                                           │
         │   ┌─────────────┐        ┌─────────────────────────────┐  │
-        │   │  VM Vault   │        │      Cluster RKE2 (3 nodes)  │  │
-        │   │  (externe)  │◄──────►│  control-plane + 2 workers   │  │
-        │   └─────────────┘  net.  │  Cilium (CNI) + Hubble        │  │
-        │                   privé  │                                │  │
-        │                          │  ArgoCD (App-of-Apps GitOps)  │  │
-        │                          │   ├─ layer-00-infra           │  │
-        │                          │   │   CCM, ingress-nginx,     │  │
-        │                          │   │   cert-manager             │  │
-        │                          │   ├─ layer-01-apps            │  │
-        │                          │   │   Harbor, GitLab,          │  │
-        │                          │   │   SonarQube, Jenkins        │  │
-        │                          │   └─ layer-02-observability   │  │
-        │                          │       kube-prometheus-stack,   │  │
-        │                          │       Loki/Promtail            │  │
+        │   │  VM Vault   │        │      Cluster RKE2 (3 nodes) │  │
+        │   │  (externe)  │◄──────►│  control-plane + 2 workers  │  │
+        │   └─────────────┘  net.  │  Cilium (CNI) + Hubble      │  │
+        │                   privé  │                             │  │
+        │                          │  ArgoCD (App-of-Apps GitOps)│  │
+        │                          │   ├─ layer-00-infra         │  │
+        │                          │   │   CCM, ingress-nginx,   │  │
+        │                          │   │   cert-manager          │  │
+        │                          │   ├─ layer-01-apps          │  │
+        │                          │   │   Harbor, GitLab,       │  │
+        │                          │   │   SonarQube, Jenkins    │  │
+        │                          │   └─ layer-02-observability │  │
+        │                          │       kube-prometheus-stack,│  │
+        │                          │       Loki/Promtail         │  │
         │                          └─────────────────────────────┘  │
         └───────────────────────────────────────────────────────────┘
                                         │ *.k8s.yplank.fr (wildcard, OVH DNS)
                                         ▼
-                              Utilisateur / jury (navigateur)
+                                   Utilisateur
 ```
 
 ## Flux CI/CD applicatif
@@ -60,39 +58,36 @@ git push (GitLab, projet poc-ci/firmware-poc)
    │  webhook
    ▼
 Jenkins (agent Kubernetes dynamique, legacy Ubuntu 18.04/gcc-7
-         ou modern Ubuntu 22.04/gcc-12 selon paramètre VARIANT)
+         ou modern Ubuntu 22.04/gcc-12)
    ├─ Checkout
-   ├─ Checkov       - lint sécurité du Dockerfile
-   ├─ Build image   - si Dockerfile modifié, sinon pull Harbor
-   ├─ Trivy         - scan vulnérabilités, FAIL sur HIGH/CRITICAL
-   ├─ Syft          - génère le SBOM (SPDX)
-   ├─ Build firmware - compilation dans le conteneur (legacy ou modern)
-   ├─ SonarQube     - analyse statique + Quality Gate
-   ├─ Simulateur    - validation du binaire ELF produit
-   ├─ Push Harbor   - image versionnée + latest
-   └─ Cosign        - signe l'image + atteste le SBOM
+   ├─ Checkov         - lint sécurité du Dockerfile
+   ├─ Build image     - si Dockerfile modifié, sinon pull Harbor
+   ├─ Trivy           - scan vulnérabilités, FAIL sur HIGH/CRITICAL
+   ├─ Syft            - génère le SBOM (SPDX)
+   ├─ Build firmware  - compilation dans le conteneur (legacy ou modern)
+   ├─ SonarQube       - analyse statique + Quality Gate
+   ├─ Simulateur      - validation du binaire ELF produit
+   ├─ Push Harbor     - image versionnée + latest
+   └─ Cosign          - signe l'image + atteste le SBOM
 ```
 
 Détail complet : `docs/firmware-poc.md` et `docs/apps-stack.md`.
 
-## Pourquoi ces choix (arguments pour l'oral)
+## Arbitrage de la démo/PoC
 
 - **RKE2 plutôt que kubeadm** : CIS-hardened par défaut, install air-gap
-  possible (pertinent en environnement confidentiel), upgrades simplifiés.
+  possible, upgrades simplifiés.
 - **Cilium** malgré le CNI par défaut de RKE2 : eBPF, Hubble (observabilité
   réseau), NetworkPolicy L7.
-- **Pas de Longhorn / débat stockage** : hors scope de démo, choix
+- **Pas de Longhorn** : hors scope de démo, choix
   d'implémentation silencieux (`local-path-provisioner`).
-- **Vault hors cluster** (VM dédiée) : éviter la dépendance circulaire - si le
+- **Vault hors cluster** (VM dédiée) : éviter la dépendance au cluster - si le
   cluster tombe, il faut pouvoir accéder aux secrets pour le réparer.
 - **Scaleway (cloud public)** plutôt qu'un homelab : garantit la disponibilité
-  le jour J. L'IaC (Terraform + Ansible) est identique à ce qui serait
+  le jour J. L'IaC (Terraform + Ansible) est proche de ce qui serait
   déployé on-premise, seul le provider change.
-- **Cas d'usage fictif** : confidentialité industrielle - cf. ci-dessus.
-- **Argument GitOps** : le cluster peut être détruit et recréé
-  (`docs/rebuild-runbook.md`), toute la stack applicative revient
-  automatiquement sans intervention manuelle - preuve concrète de
-  reproductibilité et de résilience de l'approche IaC + GitOps.
+- **GitOps** : le cluster peut être détruit et recréé
+  (`docs/rebuild-runbook.md`)
 
 ## Stack technique
 
@@ -127,26 +122,17 @@ Détail complet : `docs/firmware-poc.md` et `docs/apps-stack.md`.
 | ESO (External Secrets Operator) | Non implémenté | cf. `docs/evolutions-possibles.md` |
 | Gitleaks | Implémenté (repo entier) | GitHub Actions (`gitleaks.yml`), sur tout push/PR - distinct du code applicatif fictif (aucun secret réel possible dans un cas d'usage inventé), ici on protège le repo réel (Terraform/Ansible/scripts) |
 
-## Points de langage à tenir prêts pour l'oral
+## Catégories d'outils de sécurité
 
-- **Pourquoi pas de policy d'admission K8s (type Kyverno) pour vérifier les
-  signatures Cosign ?** Le cluster n'est ici qu'une **forge logicielle**
-  (Harbor/GitLab/Jenkins/SonarQube) - il n'est jamais la cible de déploiement
-  du livrable (le firmware produit est un binaire ARM compilé, jamais un
-  workload Kubernetes). Un admission controller protégerait un déploiement
-  qui n'existe pas dans ce périmètre - le démontrer nécessiterait un
-  déploiement artificiel (`kubectl run` hors pipeline), pas un vrai maillon
-  du flux réel. En prod, la vérification de provenance équivalente se ferait
-  au bon endroit architectural : à la **sortie/promotion du registre**
-  (ex. policies Xray sur Artifactory, cf. `docs/poc-vs-prod.md`), pas à
-  l'admission d'un cluster de déploiement.
-- **Pourquoi Vault n'a pas d'auth K8s dynamique ?** Même arbitrage - la
-  reachability réseau et la gestion des tokens de ServiceAccount sur K8s
-  récent n'avaient jamais été validées sur ce cluster ; le risque de debug
-  supplémentaire sur une brique périphérique (non démontrée à l'oral)
-  n'était pas justifié.
-- **Pourquoi un use-case fictif ?** Confidentialité industrielle.
-- **Pourquoi pas de mutualisation multi-départements (scénario "Centre de
-  Services") ?** Trop lourd à poser et défendre en 45 minutes pour la valeur
-  ajoutée obtenue - le fil conducteur reste le contexte réel de
-  l'alternance (une équipe, un périmètre).
+| Outil | Catégorie | Ce qu'il analyse |
+|---|---|---|
+| SonarQube (+ plugin `sonar-cxx` + cppcheck) | SAST (allégé) | Le code source C lui-même - analyse heuristique par fichier (cppcheck), pas de taint analysis inter-fonctions. Limite de l'édition Community, cf. `docs/poc-vs-prod.md` |
+| Trivy | SCA (Software Composition Analysis) | Les dépendances/paquets **tiers** présents dans l'image (CVE connues sur des versions de bibliothèques) - pas le code applicatif |
+| Checkov (Jenkins) | Scan IaC | Le `Dockerfile` lui-même (mauvaises pratiques d'écriture) |
+| tfsec / Checkov (GitHub Actions) | Scan IaC | Terraform/Ansible |
+| Gitleaks | Scan de secrets | Recherche de clés/tokens committés dans le repo |
+
+**SAST réel (taint analysis, flux de données inter-procédural)** : non
+implémenté ici - limite assumée de SonarQube Community + plugin
+communautaire (cf. `docs/poc-vs-prod.md`, section "avantage SonarQube payant
+vs Community").
