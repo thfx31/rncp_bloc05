@@ -2,8 +2,7 @@
 
 Pistes identifiées et argumentées pendant le projet, écartées du périmètre de
 ce POC par arbitrage risque/valeur (temps de démo de 5 minutes, briques déjà
-suffisamment démontrées) - pas des oublis. Détail des décisions au moment où
-elles ont été prises : `docs/poc-vs-prod.md`.
+suffisamment démontrées) - pas des oublis.
 
 ## Vault - auth Kubernetes native
 

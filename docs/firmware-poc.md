@@ -1,51 +1,30 @@
 # firmware-poc - cas d'usage applicatif (Phase 4/6)
 
-## Quoi
-
-Un firmware fictif pour un sous-système satellite (acquisition de télémétrie,
-LED de statut, sortie UART), ciblant ARM Cortex-M - code C minimal
+Un firmware fictif pour un sous-système satellite ciblant ARM Cortex-M avec un code C minimal
 (`app/firmware-poc/src/`), plus un "simulateur" (`simulator/simulator.c`) qui
 valide le binaire produit (format ELF, taille, section exécutable) en guise
 de test d'intégration sans matériel réel.
 
 ## Pourquoi un cas fictif
 
-Le contexte réel (alternance dans une équipe infrastructure du secteur
-spatial/satellite, support à des développeurs de logiciel embarqué C) ne
-peut pas être démontré avec du vrai code ou de vrais outils - confidentialité
-industrielle. Ce cas d'usage reproduit fidèlement le problème réel sans
-exposer quoi que ce soit de sensible : voir `docs/architecture.md`.
-
-## Pourquoi deux Dockerfiles (legacy / modern)
-
-Repris de l'ancien repo `infra-rncp` (lecture seule, jamais modifié) :
-`docker/Dockerfile.legacy` (Ubuntu 18.04 + gcc-7) et `docker/Dockerfile.modern`
-(Ubuntu 22.04 + gcc-12) représentent la **problématique de départ** du
-projet : les toolchains de build legacy dépendent d'OS obsolètes, ce qui
-imposait historiquement des workstations ou nodes Jenkins dédiés, figés par
-OS, non patchables sans casser les builds.
-
-Le `Jenkinsfile` unique (`app/firmware-poc/Jenkinsfile`) est **paramétré**
-(`VARIANT: legacy|modern`, cf. `docs/apps-stack.md`) plutôt que dupliqué en
-deux fichiers - les deux variantes tournent comme agents Kubernetes
-dynamiques sur le même cluster, à la demande, sans node dédié par OS : c'est
-la preuve concrète que Kubernetes résout le problème initial.
+Le contexte réel, support à des développeurs de logiciel embarqué C, ne
+peut pas être démontré avec du vrai code ou de vrais outils. Ce cas d'usage reproduit le problème réel sans
+exposer quoi que ce soit de sensible.
 
 ## Pipeline
 
-Checkout → Checkov (lint Dockerfile) → Build image → Trivy (scan
-vulnérabilités) → Syft (SBOM) → Build firmware (`make TARGET=x86`) →
-SonarQube → Simulateur (validation ELF) → Push Harbor → Cosign (signature +
+Checkout > Checkov (lint Dockerfile) > Build image > Trivy (scan
+vulnérabilités) > Syft (SBOM) > Build firmware (`make TARGET=x86`) >
+SonarQube > Simulateur (validation ELF) > Push Harbor > Cosign (signature +
 attestation SBOM). Détail complet des stages et des credentials :
 `docs/apps-stack.md`.
 
-## Où vit le code
+## Où est le code
 
 - **Source de vérité** : `app/firmware-poc/` dans ce repo (GitHub).
 - **GitLab** (`poc-ci/firmware-poc`) : simple miroir de démo, resynchronisé à
-  la demande via `make gitlab-init` (`scripts/gitlab-init.sh`) - force-push
-  d'un repo autonome à chaque appel, pas de lien d'historique avec GitHub.
-  C'est GitLab qui déclenche Jenkins (webhook), pas GitHub.
+  la demande via `make gitlab-init` (`scripts/gitlab-init.sh`).
+  C'est GitLab qui déclenche Jenkins, pas GitHub.
 
 ## Dockerfile - arbitrages sécurité (Checkov)
 
@@ -62,7 +41,6 @@ conteneur de build ne pourrait pas y écrire.
 Troisième choix du paramètre `VARIANT`, en plus de `legacy`/`modern` :
 `docker/Dockerfile.broken` reprend `Dockerfile.legacy` **sans** les 2
 corrections Checkov ci-dessus (pas de `USER` non-root, pas de `HEALTHCHECK`).
-Sert uniquement à démontrer en direct (cahier de recettes, soutenance) que le
+Sert uniquement à démontrer en direct que le 
 pipeline bloque bien avant tout build/push dès qu'un Dockerfile est non
-conforme - un clic "Build with Parameters", pas de commit à faire en live. Ne
-jamais corriger ce fichier : la non-conformité est le but recherché.
+conforme.

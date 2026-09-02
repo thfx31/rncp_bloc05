@@ -19,8 +19,8 @@ Cortex-M reproduit fidèlement le problème réel (deux toolchains, deux OS)
 ## Schéma global
 
 ```
-                         ┌─────────────────────────────┐
-                         │      GitHub (IaC)            │
+                         ┌───────────────────────────────┐
+                         │      GitHub (IaC)             │
                          │  terraform/ + ansible/        │
                          │  .github/workflows/lint-iac   │
                          └──────────────┬────────────────┘
@@ -87,7 +87,7 @@ Détail complet : `docs/firmware-poc.md` et `docs/apps-stack.md`.
   le jour J. L'IaC (Terraform + Ansible) est proche de ce qui serait
   déployé on-premise, seul le provider change.
 - **GitOps** : le cluster peut être détruit et recréé
-  (`docs/rebuild-runbook.md`)
+  (`docs/setup.md`)
 
 ## Stack technique
 
@@ -114,7 +114,7 @@ Détail complet : `docs/firmware-poc.md` et `docs/apps-stack.md`.
 | Trivy | Implémenté | Scan d'image dans le pipeline Jenkins, fail sur HIGH/CRITICAL. Bundlé aussi dans Harbor |
 | Cosign | Implémenté | Signature des images validées, clé statique (cf. `docs/cosign.md`) |
 | Syft (SBOM) | Implémenté | Génération SBOM par image, attaché en attestation Cosign |
-| Checkov / tfsec | Implémenté | Scan Dockerfile dans Jenkins (Checkov) + scan Terraform/Ansible via GitHub Actions (`docs/checkov-tfsec.md`) |
+| Checkov / tfsec | Implémenté | Scan Dockerfile dans Jenkins (Checkov) + scan Terraform/Ansible via GitHub Actions |
 | SonarQube | Implémenté | Déjà en place chez le client, gardé dans le POC |
 | RBAC K8s | Implémenté | Namespaces séparés par app, ServiceAccounts scopés |
 | NetworkPolicy Cilium | Implémenté (silencieux) | Isolation inter-namespaces par défaut de Cilium, non démontrée activement |
@@ -126,7 +126,7 @@ Détail complet : `docs/firmware-poc.md` et `docs/apps-stack.md`.
 
 | Outil | Catégorie | Ce qu'il analyse |
 |---|---|---|
-| SonarQube (+ plugin `sonar-cxx` + cppcheck) | SAST (allégé) | Le code source C lui-même - analyse heuristique par fichier (cppcheck), pas de taint analysis inter-fonctions. Limite de l'édition Community, cf. `docs/poc-vs-prod.md` |
+| SonarQube (+ plugin `sonar-cxx` + cppcheck) | SAST (allégé) | Le code source C lui-même - analyse heuristique par fichier (cppcheck), pas de taint analysis inter-fonctions. Limite de l'édition Community |
 | Trivy | SCA (Software Composition Analysis) | Les dépendances/paquets **tiers** présents dans l'image (CVE connues sur des versions de bibliothèques) - pas le code applicatif |
 | Checkov (Jenkins) | Scan IaC | Le `Dockerfile` lui-même (mauvaises pratiques d'écriture) |
 | tfsec / Checkov (GitHub Actions) | Scan IaC | Terraform/Ansible |
@@ -134,5 +134,6 @@ Détail complet : `docs/firmware-poc.md` et `docs/apps-stack.md`.
 
 **SAST réel (taint analysis, flux de données inter-procédural)** : non
 implémenté ici - limite assumée de SonarQube Community + plugin
-communautaire (cf. `docs/poc-vs-prod.md`, section "avantage SonarQube payant
-vs Community").
+communautaire. En contexte professionnel réel, ce même projet basculerait
+vers une édition payante de SonarQube (CFamily), qui apporte le SAST complet
+- un changement d'outil, pas de méthode.

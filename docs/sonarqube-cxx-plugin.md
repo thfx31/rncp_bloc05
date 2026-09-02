@@ -12,7 +12,7 @@ Solution retenue pour ce POC : installer le plugin communautaire
 pod SonarQube. **Ce n'est pas géré par le Helm chart** (`kubernetes/01-apps/sonarqube-app.yaml`)
 - le jar est copié directement sur le volume persistant du pod. Ces étapes sont
 donc à rejouer manuellement après un destroy/rebuild du cluster (cf.
-[`rebuild-runbook.md`](rebuild-runbook.md)).
+[`setup.md`](setup.md)).
 
 ## 1. Installer le plugin
 

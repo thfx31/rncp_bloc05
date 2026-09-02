@@ -5,13 +5,12 @@ Projet de Mastère **Expert en cloud, sécurité & infrastructure** - Modernisat
 
 ## Contexte
 
-Les toolchains et simulateurs de build d'une équipe infrastructure (secteur spatial/satellite)
-dépendent d'OS obsolètes (Ubuntu 18.04/20.04) : ça impose des workstations et des nodes Jenkins
-dédiés, figés par OS, non patchables sans casser les builds.
+Les toolchains et simulateurs de build d'une équipe infrastructure (secteur spatial)
+dépendent d'OS obsolètes (Ubuntu 18.04/20.04) : cela impose des workstations et des nodes Jenkins
+dédiés, figés par OS.
 
 Ce POC dockerise ces environnements de build et les orchestre sur Kubernetes, avec une chaîne
-CI/CD sécurisée (DevSecOps) de bout en bout - cas d'usage volontairement fictif (confidentialité
-industrielle), détail complet dans [`docs/architecture.md`](docs/architecture.md).
+CI/CD sécurisée (DevSecOps) de bout en bout. Lire détails dans la partie [`docs/architecture.md`](docs/architecture.md).
 
 ## Stack technique
 
@@ -55,10 +54,6 @@ Jenkins (agent Kubernetes éphémère, paramètre VARIANT: legacy|modern)
     └── 10. Cosign - signe l'image + atteste le SBOM
 ```
 
-`VARIANT=legacy` se déclenche automatiquement à chaque push (webhook GitLab).
-`VARIANT=modern` se lance à la main (Build with Parameters) - un seul
-Jenkinsfile paramétré plutôt que deux jobs dupliqués.
-
 ## Structure du dépôt
 
 ```
@@ -77,17 +72,16 @@ rncp_bloc05/
 │   └── 02-observability/    kube-prometheus-stack, Loki/Promtail
 ├── app/firmware-poc/         Code C fictif + Dockerfiles legacy/modern + Jenkinsfile
 ├── scripts/                 gitlab-init.sh (bootstrap projet GitLab + webhook)
-├── .github/workflows/       lint-iac.yml (Checkov/tfsec/ansible-lint sur l'IaC)
+├── .github/workflows/       infra-deploy.yml, infra-destroy.yml, lint-iac.yml, gitleaks.yml 
 ├── Makefile                 Toutes les commandes de pilotage (make help)
 └── docs/                    Documentation technique (voir ci-dessous)
 ```
 
 ## Démarrage rapide
 
-- **Première mise en place** : [`docs/setup-guide.md`](docs/setup-guide.md) - checklist
-  détaillée avec l'historique des pièges rencontrés.
-- **Reconstruction complète** (après un destroy) : [`docs/rebuild-runbook.md`](docs/rebuild-runbook.md)
-  - mode opératoire linéaire à redérouler tel quel.
+- **Mise en place / reconstruction** (première fois ou après un destroy) :
+  [`docs/setup.md`](docs/setup.md) - mode opératoire
+  linéaire à redérouler tel quel.
 - `make help` liste toutes les commandes disponibles.
 
 ## Documentation
@@ -95,10 +89,8 @@ rncp_bloc05/
 | Doc | Contenu |
 |---|---|
 | [`docs/architecture.md`](docs/architecture.md) | Vue d'ensemble, schéma, arguments pour l'oral |
-| [`docs/poc-vs-prod.md`](docs/poc-vs-prod.md) | Tableau vivant des arbitrages POC vs production |
 | [`docs/evolutions-possibles.md`](docs/evolutions-possibles.md) | Pistes envisagées, non implémentées |
-| [`docs/setup-guide.md`](docs/setup-guide.md) | Checklist de mise en place, pièges rencontrés |
-| [`docs/rebuild-runbook.md`](docs/rebuild-runbook.md) | Runbook de reconstruction complète |
+| [`docs/setup.md`](docs/setup.md) | Runbook de mise en place / reconstruction complète, pièges rencontrés |
 | [`docs/vault.md`](docs/vault.md) | Vault - installation, init, unseal |
 | [`docs/cluster-foundation.md`](docs/cluster-foundation.md) | Fondation cluster (GitOps, `00-infra/`) |
 | [`docs/apps-stack.md`](docs/apps-stack.md) | Stack applicative (`01-apps/`), credentials, webhook |
@@ -106,4 +98,3 @@ rncp_bloc05/
 | [`docs/firmware-poc.md`](docs/firmware-poc.md) | Cas d'usage applicatif, legacy vs modern |
 | [`docs/cosign.md`](docs/cosign.md) | Signature d'images |
 | [`docs/sonarqube-cxx-plugin.md`](docs/sonarqube-cxx-plugin.md) | Plugin C/C++ (sonar-cxx), profil qualité, Quality Gate |
-| [`docs/checkov-tfsec.md`](docs/checkov-tfsec.md) | Scan statique IaC (GitHub Actions) |

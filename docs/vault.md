@@ -11,11 +11,11 @@
 
 Résultat après `make ansible-vault` : Vault tourne, **scellé et non initialisé**.
 
-## Ce que le rôle NE fait PAS (volontairement)
+## Ce que le rôle NE fait PAS
 
 `vault operator init` et `vault operator unseal` ne sont **pas automatisés** -
-limite POC assumée (cf. `docs/poc-vs-prod.md`), pour ne pas faire transiter les unseal
-keys / le root token par du code Ansible versionné ou des logs de playbook.
+limite POC assumée, pour ne pas faire transiter les unseal keys / le root
+token par du code Ansible versionné ou des logs de playbook.
 À faire à la main, une seule fois :
 
 ```bash
@@ -25,9 +25,7 @@ export VAULT_SKIP_VERIFY=true   # certificat auto-signé, POC uniquement
 # Initialisation (une seule fois - génère 5 unseal keys + 1 root token)
 vault operator init
 
-# Conserver les 5 unseal keys et le root token dans un endroit sûr
-# (gestionnaire de mots de passe personnel - PAS dans le repo, PAS dans un fichier
-# non chiffré sur la VM)
+# Conserver les 5 unseal keys
 
 # Unseal (à refaire à chaque redémarrage du service vault - 3 clés sur 5 suffisent)
 vault operator unseal   # x3, avec 3 unseal keys différentes
@@ -72,17 +70,3 @@ vault status            # doit afficher "Sealed: false"
 Si seul le service `vault` redémarre (VM conservée, pas de destroy), l'étape
 `vault operator init` est déjà faite : passer directement à `vault operator
 unseal` avec les clés de la session en cours.
-
-## Poids sur la démo / soutenance
-
-Argument à l'oral si questionné sur l'unseal manuel : en production, on
-utiliserait l'auto-unseal (KMS cloud, Transit d'un autre Vault, ou HSM) -
-hors scope volontaire pour un POC 5 minutes de démo, où Vault est démarré à
-l'avance et reste unsealed pendant la soutenance.
-
-## Non implémenté dans ce POC
-
-Auth K8s (intégration Jenkins dynamique) et ESO (pont Vault → K8s Secrets)
-étaient envisagés puis abandonnés par arbitrage risque/valeur - cf.
-`docs/evolutions-possibles.md`. Vault reste une VM externe avec des secrets
-KV gérés manuellement dans ce POC.

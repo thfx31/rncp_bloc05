@@ -1,7 +1,5 @@
 # Cosign - signature d'images
 
-## Quoi
-
 [Cosign](https://github.com/sigstore/cosign) (projet Sigstore) signe une image de
 conteneur : il calcule une signature sur le digest (hash SHA256 du manifeste), et pousse
 cette signature comme un artefact OCI séparé dans le même registre (Harbor), sans modifier
@@ -15,26 +13,25 @@ Sigstore recommande en priorité le mode **keyless** (certificat éphémère sig
 via un token OIDC, transparence publique dans le log Rekor) - pas de clé privée à gérer du
 tout. Choix POC : **clé statique** (`cosign generate-key-pair`) à la place, pour ne pas
 dépendre de la joignabilité de `fulcio.sigstore.dev`/`rekor.sigstore.dev` ni d'un OIDC
-issuer externe le jour de la soutenance - une démo doit rester autonome et fiable sans
-dépendre d'un service tiers.
+issuer externe le jour de la soutenance.
 
 En prod, la piste naturelle serait Vault comme backend KMS
 (`cosign sign --key hashivault://<key-name>`, moteur `transit` de Vault) : la clé privée ne
 sort jamais de Vault, Cosign lui envoie juste le digest à signer. Non implémenté dans ce
-POC (aurait fait dépendre la capacité de signer d'un Vault unsealed).
+POC.
 
 ## Où est la clé
 
 - **Clé privée** (`cosign.key`) : générée hors repo, dans `~/.cosign/rncp-bc05/` sur le
-  poste opérateur - **jamais committée**. Passphrase vide (`COSIGN_PASSWORD=""`) pour
+  poste opérateur n'est **jamais committée**. Passphrase vide (`COSIGN_PASSWORD=""`) pour
   permettre une signature non-interactive depuis un pipeline Jenkins.
 - **Clé publique** (`cosign.pub`) : committée dans
   `kubernetes/01-apps/cosign-public-key/cosign.pub` - ce n'est pas un secret.
   Elle permet à quiconque de vérifier une image sans dépendre du pipeline
   (`cosign verify`) - pas de policy de vérification automatique en aval de
   Harbor dans ce POC (le cluster n'étant pas la cible de déploiement du
-  livrable, cf. `docs/architecture.md`), cf. `docs/poc-vs-prod.md` pour
-  l'équivalent envisagé en prod (registre Artifactory + policies Xray).
+  livrable, cf. `docs/architecture.md`). En prod, l'équivalent envisagé serait
+  une policy au niveau du registre (ex. Xray sur Artifactory).
 
 ## Commandes
 
@@ -51,10 +48,5 @@ cosign verify --key cosign.pub harbor.k8s.yplank.fr/<project>/<image>:<tag>
 
 `cosign verify` échoue explicitement (exit non-zero, message clair) si l'image n'a jamais
 été signée, ou si la signature ne correspond pas à la clé publique fournie - une policy de
-promotion de registre (Xray sur Artifactory en prod, cf. `docs/poc-vs-prod.md`) réutiliserait
-ce même comportement pour bloquer la publication d'une image non signée.
-
-## Arbitrage POC vs prod
-
-Voir `docs/poc-vs-prod.md` - clé statique + passphrase vide, vs keyless/Sigstore ou Vault
-Transit KMS en prod.
+promotion de registre (Xray sur Artifactory en prod) réutiliserait ce même comportement
+pour bloquer la publication d'une image non signée.
