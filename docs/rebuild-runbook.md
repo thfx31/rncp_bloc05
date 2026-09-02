@@ -44,6 +44,12 @@ make ansible-k8s        # bootstrap OS + RKE2 control-plane/agents
 make ansible-vault      # install Vault (TLS auto-signée, raft single-node)
 ```
 
+**Alternative** : les étapes 1 et 2 ci-dessus sont automatisables en un clic
+via le workflow GitHub Actions `infra-deploy` (`workflow_dispatch` manuel,
+jamais sur push/PR - cf. `docs/poc-vs-prod.md` pour l'arbitrage et la liste
+des Secrets GitHub à configurer une seule fois). Reprendre ensuite à
+l'étape 3 ci-dessous.
+
 ## 3. Vault - init + unseal (manuel, à refaire à chaque recréation de la VM)
 
 ```bash
@@ -229,6 +235,9 @@ correspond au dernier commit avant de lancer 3-4 ci-dessus.
 make tf-vault-destroy
 make tf-cluster-destroy
 ```
+
+**Alternative** : workflow GitHub Actions `infra-destroy` (`workflow_dispatch`
+manuel, confirmation explicite requise - input `confirm: "destroy"`).
 
 Rien d'autre à nettoyer : pas de state local persistant en dehors de
 Terraform (backend S3), le kubeconfig local et le mot de passe ArgoCD

@@ -1,0 +1,51 @@
+name: infra-destroy
+
+# Destruction complète de l'infra (vault puis cluster) - équivalent à
+# l'étape 11 de docs/rebuild-runbook.md.
+#
+# Déclenchement MANUEL uniquement (workflow_dispatch), avec une confirmation
+# explicite obligatoire (input "confirm") - action destructive et
+# irréversible sur l'infra Scaleway réelle.
+
+on:
+  workflow_dispatch:
+    inputs:
+      confirm:
+        description: 'Taper exactement "destroy" pour confirmer'
+        required: true
+
+env:
+  SCW_ACCESS_KEY: ${{ secrets.SCW_ACCESS_KEY }}
+  SCW_SECRET_KEY: ${{ secrets.SCW_SECRET_KEY }}
+  SCW_DEFAULT_PROJECT_ID: ${{ secrets.SCW_DEFAULT_PROJECT_ID }}
+  SCW_DEFAULT_ORGANIZATION_ID: ${{ secrets.SCW_DEFAULT_ORGANIZATION_ID }}
+  AWS_ACCESS_KEY_ID: ${{ secrets.SCW_ACCESS_KEY }}
+  AWS_SECRET_ACCESS_KEY: ${{ secrets.SCW_SECRET_KEY }}
+
+jobs:
+  destroy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Vérifier la confirmation
+        run: |
+          if [ "${{ github.event.inputs.confirm }}" != "destroy" ]; then
+            echo "Confirmation invalide (attendu: 'destroy') - annulation."
+            exit 1
+          fi
+
+      - uses: actions/checkout@v4
+
+      - uses: hashicorp/setup-terraform@v3
+
+      - name: Terraform destroy - vault
+        working-directory: terraform/vault
+        run: |
+          terraform init -input=false
+          terraform destroy -auto-approve -input=false
+
+      - name: Terraform destroy - cluster
+        working-directory: terraform/cluster
+        run: |
+          terraform init -input=false
+          terraform destroy -auto-approve -input=false

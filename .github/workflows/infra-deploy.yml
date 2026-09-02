@@ -1,0 +1,87 @@
+name: infra-deploy
+
+# Provisionnement complet de l'infra (Terraform cluster+vault, puis Ansible
+# RKE2+Vault) - équivalent aux étapes 1-2 de docs/rebuild-runbook.md.
+#
+# Déclenchement MANUEL uniquement (workflow_dispatch) - jamais sur push/PR :
+# une vraie infra Scaleway est créée (et facturée) à chaque exécution.
+#
+# Secrets requis (Settings > Secrets and variables > Actions) :
+#   SCW_ACCESS_KEY, SCW_SECRET_KEY, SCW_DEFAULT_PROJECT_ID,
+#   SCW_DEFAULT_ORGANIZATION_ID  - credentials provider Scaleway (Terraform)
+#   SSH_PRIVATE_KEY              - clé privée (~/.ssh/id_ed25519-scw en local),
+#                                  utilisée par Ansible pour joindre les VMs
+#
+# Suite manuelle après ce workflow, non automatisée ici (cf.
+# docs/rebuild-runbook.md, étapes 3+) : Vault init/unseal, kubeconfig,
+# fondation cluster GitOps (Secrets, CCM, ArgoCD).
+
+on:
+  workflow_dispatch: {}
+
+env:
+  SCW_ACCESS_KEY: ${{ secrets.SCW_ACCESS_KEY }}
+  SCW_SECRET_KEY: ${{ secrets.SCW_SECRET_KEY }}
+  SCW_DEFAULT_PROJECT_ID: ${{ secrets.SCW_DEFAULT_PROJECT_ID }}
+  SCW_DEFAULT_ORGANIZATION_ID: ${{ secrets.SCW_DEFAULT_ORGANIZATION_ID }}
+  # Backend S3 Terraform - mêmes credentials que le provider Scaleway
+  # (cf. terraform/cluster/backend.tf et terraform/vault/backend.tf)
+  AWS_ACCESS_KEY_ID: ${{ secrets.SCW_ACCESS_KEY }}
+  AWS_SECRET_ACCESS_KEY: ${{ secrets.SCW_SECRET_KEY }}
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: hashicorp/setup-terraform@v3
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Installer Ansible
+        run: |
+          pip install -r ansible/requirements.txt
+          ansible-galaxy collection install -r ansible/requirements.yml
+
+      - name: Configurer la clé SSH
+        run: |
+          mkdir -p ~/.ssh
+          printf '%s\n' "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/id_ed25519-scw
+          chmod 600 ~/.ssh/id_ed25519-scw
+
+      - name: Terraform apply - cluster (réseau, control-plane, workers)
+        working-directory: terraform/cluster
+        run: |
+          terraform init -input=false
+          terraform apply -auto-approve -input=false
+
+      - name: Terraform apply - vault (VM dédiée)
+        working-directory: terraform/vault
+        run: |
+          terraform init -input=false
+          terraform apply -auto-approve -input=false
+
+      - name: Régénérer les outputs Terraform pour l'inventaire Ansible
+        run: |
+          terraform -chdir=terraform/cluster output -json > ansible/tf_outputs.json
+          terraform -chdir=terraform/vault output -json > ansible/tf_outputs_vault.json
+
+      - name: Ansible - bootstrap RKE2 (control-plane + workers)
+        working-directory: ansible
+        run: ansible-playbook bootstrap-k8s.yml
+
+      - name: Ansible - bootstrap Vault (install + raft, sans init/unseal)
+        working-directory: ansible
+        run: ansible-playbook bootstrap-vault.yml
+
+      - name: Prochaines étapes (manuelles)
+        run: |
+          echo "Terraform + Ansible termines avec succes."
+          echo "Suite manuelle - cf. docs/rebuild-runbook.md (etapes 3 et suivantes) :"
+          echo "  1. Vault init + unseal"
+          echo "  2. make kubeconfig"
+          echo "  3. make k8s-secrets / k8s-ccm / k8s-bootstrap-argocd"

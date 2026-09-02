@@ -96,6 +96,29 @@ copiés, avec ESO comme mécanisme de synchronisation déclaratif. Piste connue
 et argumentable, non implémentée par arbitrage de risque/valeur pour un POC
 de démo 5 minutes.
 
+## Automatisation infra (Terraform/Ansible) - workflows GitHub Actions
+
+**Décision initiale (2026-07-xx)** : ne pas automatiser le cycle
+provisionnement/destruction via GitHub Actions - cf. l'ancienne entrée dans
+`docs/evolutions-possibles.md` (retirée depuis). Argument à l'époque : le
+code Terraform/Ansible n'allait plus évoluer, pas de valeur à automatiser un
+cycle qui ne serait rejoué qu'en local ; et stocker des credentials cloud à
+pouvoir de destruction dans les Secrets d'un repo **public** était un risque
+jugé disproportionné pour un gain qui ne serait pas utilisé.
+
+**Décision révisée (2026-09-02)** : implémentée quand même
+(`.github/workflows/infra-deploy.yml` et `infra-destroy.yml`), car le calcul
+risque/valeur a changé - construction/destruction du lab devenues fréquentes
+d'ici l'examen (coût Scaleway entre deux sessions), l'automatisation a une
+vraie valeur d'usage désormais, pas seulement théorique.
+
+| Aspect | Choix | Justification |
+|---|---|---|
+| Déclenchement | `workflow_dispatch` uniquement, **jamais** sur `push`/`pull_request` | Action qui provisionne (et facture) une infra Scaleway réelle - jamais automatique sur un simple commit, toujours un déclenchement volontaire |
+| Confirmation `infra-destroy` | Input texte obligatoire (`confirm: "destroy"`), vérifié en premier step | Action destructive et irréversible - un clic "Run workflow" sur le mauvais workflow ne suffit pas à déclencher la destruction |
+| Portée | Terraform (cluster + vault) + Ansible (RKE2 + Vault) uniquement - s'arrête avant l'init/unseal Vault et la fondation GitOps | Ces étapes suivantes (`docs/rebuild-runbook.md` §3+) sont soit intrinsèquement manuelles par nature (unseal Vault - clés générées à chaque fois), soit dépendent d'autres arbitrages non résolus (cf. section Vault K8s auth ci-dessus) |
+| Secrets GitHub Actions requis | `SCW_ACCESS_KEY`, `SCW_SECRET_KEY`, `SCW_DEFAULT_PROJECT_ID`, `SCW_DEFAULT_ORGANIZATION_ID`, `SSH_PRIVATE_KEY` (clé privée Ansible) | Risque assumé : ces secrets ont un pouvoir de création/destruction sur un compte Scaleway réel, dans un repo public. Mitigation : clé API Scaleway dédiée à ce projet (pas la clé de compte principal), accès en écriture au repo limité à l'auteur (seul un collaborateur en écriture peut déclencher un `workflow_dispatch` ou lire/modifier les Secrets) |
+
 ## Registre d'images - Harbor (POC) vs Artifactory (prod)
 
 | Aspect | Choix POC | Justification |

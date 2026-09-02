@@ -45,21 +45,6 @@ dépendre d'un script qui copie une valeur une seule fois.
 gestion TLS spécifique côté CRD (`caProvider`, pas toujours de mode
 "skip verify" simple selon la version du CRD) - jamais testée sur ce cluster.
 
-## Workflows GitHub Actions deploy/destroy (infra)
-
-**Objectif envisagé** (cf. plan initial) : `deploy-cluster.yml`,
-`destroy-cluster.yml`, `deploy-vault.yml`, `destroy-vault.yml` en
-`workflow_dispatch`, avec un GitHub Environment à approbation manuelle pour
-les destroy - reconstruire/détruire l'infra en un clic depuis GitHub plutôt
-que via `make`/Terraform en local.
-
-**Pourquoi pas maintenant** : le code (Terraform/Ansible) n'évoluera plus
-d'ici la soutenance - pas de valeur à automatiser un cycle de vie qui ne sera
-plus rejoué que localement. `docs/rebuild-runbook.md` couvre déjà la procédure
-manuelle complète. Aurait aussi nécessité de stocker des credentials cloud
-avec pouvoir de destruction dans les Secrets d'un repo public - accepté comme
-risque à éviter pour un gain qui ne sera pas utilisé.
-
 ## Gitleaks (scan de secrets dans le code)
 
 Abandonné dès le cadrage initial - pas de scan de secrets dans le code
