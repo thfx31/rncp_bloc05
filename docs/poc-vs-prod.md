@@ -69,13 +69,13 @@ fonctionnelle, sans bloquer artificiellement une démo sur un critère qui doit
 se durcir progressivement (vraie couverture de tests, quality gate resserré)
 à mesure que le projet mûrit - plutôt que dès le premier commit.
 
-## Sécurité (Phase 4) - Vault K8s auth / Jenkins-Vault / ESO / Kyverno : non implémentés
+## Sécurité (Phase 4) - Vault K8s auth / Jenkins-Vault / ESO : non implémentés
 
 **Décision (2026-07-06)** : ces briques (auth K8s Vault, Jenkins qui va
-chercher un secret dynamiquement, ESO comme pont Vault→K8s Secrets, Kyverno
-en admission control) ne sont **pas implémentées** dans ce POC - Vault reste
-une VM externe avec des secrets KV gérés manuellement, Jenkins garde ses
-credentials en Secrets K8s statiques (`make jenkins-credentials`).
+chercher un secret dynamiquement, ESO comme pont Vault→K8s Secrets) ne sont
+**pas implémentées** dans ce POC - Vault reste une VM externe avec des
+secrets KV gérés manuellement, Jenkins garde ses credentials en Secrets K8s
+statiques (`make jenkins-credentials`).
 
 **Pourquoi** : chacune de ces briques dépendait d'éléments jamais validés sur
 ce cluster (reachability réseau privé Vault↔API K8s, gestion des tokens de
@@ -92,7 +92,14 @@ dès la Phase 1 (VM dédiée, hors cluster, cf. `docs/architecture.md` -
 "pourquoi Vault hors cluster") - l'étape naturelle suivante en prod serait
 d'activer l'auth K8s pour que les workloads (Jenkins en premier) authentifient
 dynamiquement via leur ServiceAccount plutôt que des secrets statiques
-copiés, avec ESO comme mécanisme de synchronisation déclaratif, et Kyverno
-pour bloquer à l'admission toute image non signée. Piste connue et
-argumentable, non implémentée par arbitrage de risque/valeur pour un POC de
-démo 5 minutes.
+copiés, avec ESO comme mécanisme de synchronisation déclaratif. Piste connue
+et argumentable, non implémentée par arbitrage de risque/valeur pour un POC
+de démo 5 minutes.
+
+## Registre d'images - Harbor (POC) vs Artifactory (prod)
+
+| Aspect | Choix POC | Justification |
+|---|---|---|
+| Registre | Harbor (self-hosted dans le cluster, scan Trivy intégré) | Composant open-source simple à déployer via Helm, cohérent avec un cluster qui n'héberge que la forge logicielle - pas de compte/contrat externe à gérer pour une démo |
+| Registre équivalent en prod | Artifactory (JFrog) | Chez le client réel (contexte fictif de ce POC), le registre d'entreprise est Artifactory, pas Harbor - Harbor est une substitution POC, pas le choix cible |
+| Vérification de provenance à la promotion | Non implémentée (Cosign signe, mais rien ne bloque une image non signée en aval de Harbor) | En prod avec Artifactory, l'équivalent serait des policies **JFrog Xray** bloquant la promotion d'un artefact entre repos tant qu'une signature/attestation valide n'est pas présente (Release Bundles v2 + Evidence) - pas de policy d'admission Kubernetes de type Kyverno, puisque le cluster n'est pas la cible de déploiement du livrable (cf. `docs/architecture.md` - "pourquoi pas de policy d'admission K8s") |

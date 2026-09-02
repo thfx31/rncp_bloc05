@@ -29,10 +29,12 @@ POC (aurait fait dépendre la capacité de signer d'un Vault unsealed).
   poste opérateur - **jamais committée**. Passphrase vide (`COSIGN_PASSWORD=""`) pour
   permettre une signature non-interactive depuis un pipeline Jenkins.
 - **Clé publique** (`cosign.pub`) : committée dans
-  `kubernetes/01-apps/cosign-public-key/cosign.pub` - ce n'est pas un secret. Elle
-  serait utilisée par une policy Kyverno (`verifyImages`) pour vérifier les
-  signatures à l'admission - piste envisagée, non implémentée dans ce POC,
-  cf. `docs/evolutions-possibles.md`.
+  `kubernetes/01-apps/cosign-public-key/cosign.pub` - ce n'est pas un secret.
+  Elle permet à quiconque de vérifier une image sans dépendre du pipeline
+  (`cosign verify`) - pas de policy de vérification automatique en aval de
+  Harbor dans ce POC (le cluster n'étant pas la cible de déploiement du
+  livrable, cf. `docs/architecture.md`), cf. `docs/poc-vs-prod.md` pour
+  l'équivalent envisagé en prod (registre Artifactory + policies Xray).
 
 ## Commandes
 
@@ -48,10 +50,9 @@ cosign verify --key cosign.pub harbor.k8s.yplank.fr/<project>/<image>:<tag>
 ```
 
 `cosign verify` échoue explicitement (exit non-zero, message clair) si l'image n'a jamais
-été signée, ou si la signature ne correspond pas à la clé publique fournie - un
-Kyverno `ClusterPolicy verifyImages` réutiliserait ce même comportement pour
-bloquer un déploiement à l'admission (piste non implémentée, cf.
-`docs/evolutions-possibles.md`).
+été signée, ou si la signature ne correspond pas à la clé publique fournie - une policy de
+promotion de registre (Xray sur Artifactory en prod, cf. `docs/poc-vs-prod.md`) réutiliserait
+ce même comportement pour bloquer la publication d'une image non signée.
 
 ## Arbitrage POC vs prod
 

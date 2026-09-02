@@ -45,28 +45,6 @@ dépendre d'un script qui copie une valeur une seule fois.
 gestion TLS spécifique côté CRD (`caProvider`, pas toujours de mode
 "skip verify" simple selon la version du CRD) - jamais testée sur ce cluster.
 
-## Kyverno - admission control
-
-**Objectif envisagé** : `ClusterPolicy verifyImages` qui vérifie la signature
-Cosign des images à l'admission - bloque un `kubectl apply` manuel qui
-contournerait le pipeline (Cosign sécurise la sortie du pipeline, Kyverno
-sécuriserait l'entrée du cluster - defense in depth).
-
-**Pourquoi pas maintenant** : le firmware produit par le pipeline
-(`app/firmware-poc/`) est un binaire ARM compilé, pas un workload Kubernetes -
-la démo de Kyverno nécessiterait un déploiement artificiel (`kubectl run`
-manuel sur l'image Harbor, hors pipeline) plutôt qu'un vrai maillon CD. Compte
-tenu du temps de soutenance (30 min présentation + 15 min Q&A, dont le POC
-n'est qu'une partie), le risque d'implémentation (scope `imageReferences` mal
-calibré pouvant bloquer tout le cluster) n'était pas justifié pour une brique
-qui ne rentrerait probablement pas dans le créneau de démo live.
-
-**Mise en œuvre si repris** : chart `kyverno/kyverno`, policy avec
-`validationFailureAction: Audit` d'abord (test avant bascule `Enforce`),
-`exclude` des namespaces système, `imageReferences` scopé strictement à
-`harbor.k8s.yplank.fr/*` pour ne pas tenter de vérifier les images tierces
-(Harbor, Jenkins, ArgoCD eux-mêmes, jamais signées par ce pipeline).
-
 ## Workflows GitHub Actions deploy/destroy (infra)
 
 **Objectif envisagé** (cf. plan initial) : `deploy-cluster.yml`,

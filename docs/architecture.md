@@ -124,18 +124,22 @@ Détail complet : `docs/firmware-poc.md` et `docs/apps-stack.md`.
 | RBAC K8s | Implémenté | Namespaces séparés par app, ServiceAccounts scopés |
 | NetworkPolicy Cilium | Implémenté (silencieux) | Isolation inter-namespaces par défaut de Cilium, non démontrée activement |
 | Vault | Implémenté (partiel) | VM dédiée, single-node raft, unseal manuel (limite POC assumée) - secrets KV gérés manuellement, pas d'auth K8s dynamique (cf. `docs/evolutions-possibles.md`) |
-| Kyverno | Non implémenté | Admission control envisagé (`verifyImages` sur signature Cosign) - cf. `docs/evolutions-possibles.md` |
 | ESO (External Secrets Operator) | Non implémenté | cf. `docs/evolutions-possibles.md` |
-| Gitleaks | Abandonné | Pas de scan de secrets dans le code applicatif dans ce POC |
+| Gitleaks | Implémenté (repo entier) | GitHub Actions (`gitleaks.yml`), sur tout push/PR - distinct du code applicatif fictif (aucun secret réel possible dans un cas d'usage inventé), ici on protège le repo réel (Terraform/Ansible/scripts) |
 
 ## Points de langage à tenir prêts pour l'oral
 
-- **Pourquoi Kyverno n'est pas implémenté alors que Cosign signe déjà tout ?**
-  Cosign sécurise la sortie du pipeline (preuve cryptographique), Kyverno
-  sécuriserait l'entrée du cluster (bloquer un `kubectl apply` manuel qui
-  contourne le pipeline) - defense in depth. Piste connue, non implémentée
-  par arbitrage de risque/valeur pour un POC de démo 5 minutes (cf.
-  `docs/evolutions-possibles.md`).
+- **Pourquoi pas de policy d'admission K8s (type Kyverno) pour vérifier les
+  signatures Cosign ?** Le cluster n'est ici qu'une **forge logicielle**
+  (Harbor/GitLab/Jenkins/SonarQube) - il n'est jamais la cible de déploiement
+  du livrable (le firmware produit est un binaire ARM compilé, jamais un
+  workload Kubernetes). Un admission controller protégerait un déploiement
+  qui n'existe pas dans ce périmètre - le démontrer nécessiterait un
+  déploiement artificiel (`kubectl run` hors pipeline), pas un vrai maillon
+  du flux réel. En prod, la vérification de provenance équivalente se ferait
+  au bon endroit architectural : à la **sortie/promotion du registre**
+  (ex. policies Xray sur Artifactory, cf. `docs/poc-vs-prod.md`), pas à
+  l'admission d'un cluster de déploiement.
 - **Pourquoi Vault n'a pas d'auth K8s dynamique ?** Même arbitrage - la
   reachability réseau et la gestion des tokens de ServiceAccount sur K8s
   récent n'avaient jamais été validées sur ce cluster ; le risque de debug
