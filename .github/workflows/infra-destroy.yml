@@ -1,12 +1,5 @@
 name: infra-destroy
 
-# Destruction complète de l'infra (vault puis cluster) - équivalent à
-# l'étape 11 de docs/rebuild-runbook.md.
-#
-# Déclenchement MANUEL uniquement (workflow_dispatch), avec une confirmation
-# explicite obligatoire (input "confirm") - action destructive et
-# irréversible sur l'infra Scaleway réelle.
-
 on:
   workflow_dispatch:
     inputs:

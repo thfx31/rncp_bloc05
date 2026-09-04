@@ -1,5 +1,3 @@
-# sync-wave "2" : après ingress-nginx (IngressClass) et le ClusterIssuer
-# letsencrypt-prod (cert-manager-webhook-ovh-app, sync-wave 1).
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:

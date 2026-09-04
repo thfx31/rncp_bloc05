@@ -1,7 +1,3 @@
-# RKE2 gère Cilium nativement comme addon packagé (rke2_cni: cilium, cf.
-# ansible/roles/rke2). On ne réinstalle pas un second Cilium ici - ce
-# HelmChartConfig fusionne juste ces values dans le HelmChart managé par RKE2.
-# Le nom "rke2-cilium" doit correspondre exactement à celui que RKE2 utilise.
 apiVersion: helm.cattle.io/v1
 kind: HelmChartConfig
 metadata:

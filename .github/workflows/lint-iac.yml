@@ -35,8 +35,6 @@ jobs:
           curl -sL https://raw.githubusercontent.com/aquasecurity/tfsec/master/scripts/install_linux.sh | bash
 
       - name: tfsec
-        # soft_fail au départ (cf. poc-vs-prod.md) - le temps de trier les
-        # faux positifs avant de passer en hard-fail
         continue-on-error: true
         run: |
           tfsec terraform --format json --out tfsec-report.json
@@ -70,8 +68,6 @@ jobs:
           python-version: "3.12"
 
       - name: ansible-lint
-        # soft_fail au départ, comme tfsec/checkov ci-dessus (cf. poc-vs-prod.md)
-        # - le temps de trier les faux positifs avant de passer en hard-fail
         continue-on-error: true
         run: |
           pip install ansible-lint

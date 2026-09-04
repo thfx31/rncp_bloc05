@@ -5,8 +5,6 @@ vault_data_dir: /opt/vault/data
 
 vault_listener_address: "0.0.0.0:8200"
 
-# TLS auto-signée pour le POC - Vault n'est pas exposé publiquement au-delà de
-# SSH/API admin et du réseau privé. Un vrai déploiement utiliserait un
-# certificat signé par une CA interne ou le secrets engine PKI de Vault.
+# TLS auto-signée pour le POC
 vault_tls_cn: "vault.internal"
 vault_tls_days_valid: 825

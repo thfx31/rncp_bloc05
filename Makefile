@@ -1,5 +1,4 @@
 # ──────────────────────────────────────────────────────────
-# Makefile - rncp-bc05
 # Pilotage Terraform (cluster/vault) & Ansible depuis la machine de dev
 # ──────────────────────────────────────────────────────────
 
@@ -108,8 +107,6 @@ kubeconfig:
 nodes:
 	KUBECONFIG=$(KUBECONFIG_FILE) kubectl get nodes -o wide
 
-## Créer les Secrets requis par la fondation cluster (Scaleway CCM, OVH DNS-01)
-## Lues depuis les mêmes variables d'environnement que Terraform + OVH_* (voir docs/setup-guide.md)
 k8s-secrets:
 	KUBECONFIG=$(KUBECONFIG_FILE) kubectl create secret generic scaleway-secret \
 		-n kube-system \
@@ -127,15 +124,6 @@ k8s-secrets:
 		--from-literal=applicationConsumerKey="$$OVH_CONSUMER_KEY" \
 		--dry-run=client -o yaml | KUBECONFIG=$(KUBECONFIG_FILE) kubectl apply -f -
 
-## Créer les Secrets admin de la stack applicative (Harbor, GitLab, SonarQube,
-## Jenkins) - mots de passe générés aléatoirement, jamais committés.
-## IDEMPOTENT : ne touche jamais un secret déjà présent (kubectl create, pas
-## d'apply/overwrite). GitLab et Harbor ne lisent ce mot de passe qu'une seule
-## fois, à leur tout premier bootstrap (migration DB) - le regénérer après
-## coup désynchronise le secret de la vraie valeur en base, sans erreur
-## visible avant un login qui échoue. Donc relancer cette cible à tout moment
-## (ex. après un `kubectl delete secret` volontaire, ou pour compléter des
-## secrets manquants) ne casse plus rien : seuls les secrets absents sont créés.
 k8s-apps-secrets:
 	@for ns in harbor gitlab sonarqube jenkins; do \
 		KUBECONFIG=$(KUBECONFIG_FILE) kubectl create namespace $$ns --dry-run=client -o yaml | KUBECONFIG=$(KUBECONFIG_FILE) kubectl apply -f - ; \
@@ -173,8 +161,6 @@ k8s-apps-secrets:
 	@echo "puis relancer 'make k8s-apps-secrets' (et resynchroniser l'app côté GitLab/Harbor si"
 	@echo "elle a déjà consommé l'ancien, cf. docs/apps-stack.md § dépannage)."
 
-## Créer le Secret admin Grafana (Phase 5 - observabilité). IDEMPOTENT, même
-## pattern que k8s-apps-secrets.
 k8s-monitoring-secrets:
 	@KUBECONFIG=$(KUBECONFIG_FILE) kubectl create namespace monitoring --dry-run=client -o yaml | KUBECONFIG=$(KUBECONFIG_FILE) kubectl apply -f -
 	@KUBECONFIG=$(KUBECONFIG_FILE) kubectl get secret grafana-admin-secret -n monitoring >/dev/null 2>&1 && \
@@ -185,17 +171,10 @@ k8s-monitoring-secrets:
 			--from-literal=admin-password="$$GRAFANA_PW"; \
 		  echo "Grafana (admin)  : $$GRAFANA_PW"; }
 
-## Déployer le CCM Scaleway - OBLIGATOIRE avant ArgoCD. RKE2 (cloud-provider-name:
-## external) tainte tous les nodes node.cloudprovider.kubernetes.io/uninitialized
-## tant qu'aucun CCM n'a tourné ; seul le CCM tolère ce taint, tout le reste
-## (y compris ArgoCD) reste Pending tant qu'il n'a pas été levé.
 k8s-ccm: k8s-secrets
 	KUBECONFIG=$(KUBECONFIG_FILE) kubectl apply -f kubernetes/00-infra/scaleway-ccm.yaml
 	KUBECONFIG=$(KUBECONFIG_FILE) kubectl wait --for=condition=available --timeout=300s deployment/scaleway-cloud-controller-manager -n kube-system
 
-## Bootstrap ArgoCD (manifeste officiel, pas de Helm) + App-of-Apps
-## --insecure : argocd-server sert en HTTP interne, TLS terminé par l'Ingress
-## NGINX via cert-manager (cf. kubernetes/00-infra/argocd-ingress.yaml)
 k8s-bootstrap-argocd: k8s-ccm
 	KUBECONFIG=$(KUBECONFIG_FILE) kubectl create namespace argocd --dry-run=client -o yaml | KUBECONFIG=$(KUBECONFIG_FILE) kubectl apply -f -
 	# --server-side : la CRD applicationsets.argoproj.io dépasse la limite de 256 Ko
@@ -209,16 +188,9 @@ k8s-bootstrap-argocd: k8s-ccm
 	@echo "ArgoCD admin password :"
 	@KUBECONFIG=$(KUBECONFIG_FILE) kubectl -n argocd get secret argocd-initial-admin-secret -o jsonpath="{.data.password}" | base64 -d; echo
 
-## Bootstrap du projet GitLab firmware-poc (Phase 4/6) - crée le groupe/projet
-## via l'API GitLab (idempotent) et pousse app/firmware-poc/ (source de vérité
-## sur GitHub) comme repo autonome. À lancer une fois que GitLab est Healthy
-## (make k8s-apps-secrets déjà exécuté). Voir scripts/gitlab-init.sh.
 gitlab-init:
 	KUBECONFIG=$(KUBECONFIG_FILE) ./scripts/gitlab-init.sh
 
-## Créer le projet Harbor "poc-ci" (idempotent) - sans ça, un docker push
-## échoue avec "unauthorized: project poc-ci not found". Harbor ne crée que
-## le projet "library" par défaut.
 harbor-init:
 	@HARBOR_PW=$$(KUBECONFIG=$(KUBECONFIG_FILE) kubectl get secret harbor-admin-password -n harbor -o jsonpath='{.data.HARBOR_ADMIN_PASSWORD}' | base64 -d); \
 	EXISTS=$$(curl -sk -u "admin:$$HARBOR_PW" https://harbor.k8s.yplank.fr/api/v2.0/projects/poc-ci -o /dev/null -w '%{http_code}'); \
@@ -231,15 +203,6 @@ harbor-init:
 		echo "Projet Harbor poc-ci créé"; \
 	fi
 
-## Credentials Jenkins (Harbor, GitLab, Cosign) via kubernetes-credentials-provider
-## - Secrets K8s labellisés jenkins.io/credentials-type, découverts automatiquement
-## par Jenkins (namespace jenkins), aucune valeur en clair dans le repo, aucun
-## clic dans l'UI. Crée aussi gitlab-webhook-token (secret partagé avec le
-## webhook GitLab, cf. scripts/gitlab-init.sh - relancer `make gitlab-init`
-## après celle-ci pour que le webhook soit créé côté GitLab). IDEMPOTENT (comme
-## k8s-apps-secrets). Le token SonarQube reste une étape manuelle (cf.
-## docs/apps-stack.md) : pas de mot de passe admin à scripter avant le
-## changement forcé au premier login.
 jenkins-credentials:
 	@KUBECONFIG=$(KUBECONFIG_FILE) kubectl get secret harbor-credentials -n jenkins >/dev/null 2>&1 && \
 		echo "harbor-credentials existe déjà - inchangé" || \

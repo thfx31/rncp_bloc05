@@ -1,12 +1,5 @@
 name: gitleaks
 
-# Scan de secrets sur le repo entier (pas de restriction de chemin comme
-# lint-iac.yml) - un secret réel (clé Scaleway, token, clé SSH) peut fuiter
-# n'importe où (scripts/, kubernetes/, ansible/group_vars, docs/...), pas
-# seulement dans terraform/ansible. Distinct de l'abandon de Gitleaks sur le
-# code applicatif (firmware C fictif, cf. docs/evolutions-possibles.md) - ici
-# on protège le repo réel, pas le cas d'usage inventé.
-
 on:
   pull_request: {}
   push:
@@ -19,10 +12,9 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          fetch-depth: 0 # historique complet - gitleaks scanne aussi les commits passés
+          fetch-depth: 0 # historique complet
 
       - name: Gitleaks
         uses: gitleaks/gitleaks-action@v2
-        # soft_fail au départ, comme tfsec/checkov/ansible-lint (cf. poc-vs-prod.md)
-        # - le temps de trier les faux positifs avant de passer en hard-fail
+
         continue-on-error: true

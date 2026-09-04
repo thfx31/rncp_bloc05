@@ -1,5 +1,5 @@
 ---
-# ── Dépôts RPM RKE2 (rpm.rancher.io) ─────────────────────
+# Dépôts RPM RKE2 (rpm.rancher.io)
 - name: Ajouter le dépôt RPM commun RKE2
   ansible.builtin.yum_repository:
     name: rancher-rke2-common
@@ -20,7 +20,7 @@
     gpgkey: https://rpm.rancher.io/public.key
     enabled: true
 
-# ── Installation ─────────────────────────────────────────
+# Installation
 - name: Installer rke2-server
   ansible.builtin.dnf:
     name: rke2-server

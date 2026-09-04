@@ -4,7 +4,7 @@ Inventaire Ansible dynamique - lit :
   tf_outputs.json        généré par terraform -chdir=../terraform/cluster output -json
   tf_outputs_vault.json  généré par terraform -chdir=../terraform/vault output -json (optionnel)
 
-Les deux states Terraform sont indépendants (cf. docs/poc-vs-prod.md), donc deux
+Les deux states Terraform sont indépendants, donc deux
 fichiers d'outputs distincts plutôt qu'un seul.
 """
 

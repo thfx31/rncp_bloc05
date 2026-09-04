@@ -1,20 +1,7 @@
 name: infra-deploy
 
 # Provisionnement complet de l'infra (Terraform cluster+vault, puis Ansible
-# RKE2+Vault) - équivalent aux étapes 1-2 de docs/rebuild-runbook.md.
-#
-# Déclenchement MANUEL uniquement (workflow_dispatch) - jamais sur push/PR :
-# une vraie infra Scaleway est créée (et facturée) à chaque exécution.
-#
-# Secrets requis (Settings > Secrets and variables > Actions) :
-#   SCW_ACCESS_KEY, SCW_SECRET_KEY, SCW_DEFAULT_PROJECT_ID,
-#   SCW_DEFAULT_ORGANIZATION_ID  - credentials provider Scaleway (Terraform)
-#   SSH_PRIVATE_KEY              - clé privée (~/.ssh/id_ed25519-scw en local),
-#                                  utilisée par Ansible pour joindre les VMs
-#
-# Suite manuelle après ce workflow, non automatisée ici (cf.
-# docs/rebuild-runbook.md, étapes 3+) : Vault init/unseal, kubeconfig,
-# fondation cluster GitOps (Secrets, CCM, ArgoCD).
+# RKE2+Vault)
 
 on:
   workflow_dispatch: {}
@@ -25,7 +12,6 @@ env:
   SCW_DEFAULT_PROJECT_ID: ${{ secrets.SCW_DEFAULT_PROJECT_ID }}
   SCW_DEFAULT_ORGANIZATION_ID: ${{ secrets.SCW_DEFAULT_ORGANIZATION_ID }}
   # Backend S3 Terraform - mêmes credentials que le provider Scaleway
-  # (cf. terraform/cluster/backend.tf et terraform/vault/backend.tf)
   AWS_ACCESS_KEY_ID: ${{ secrets.SCW_ACCESS_KEY }}
   AWS_SECRET_ACCESS_KEY: ${{ secrets.SCW_SECRET_KEY }}
 
@@ -81,7 +67,7 @@ jobs:
       - name: Prochaines étapes (manuelles)
         run: |
           echo "Terraform + Ansible termines avec succes."
-          echo "Suite manuelle - cf. docs/rebuild-runbook.md (etapes 3 et suivantes) :"
+          echo "Suite manuelle - cf. docs/rebuild-runbook.md (étapes 3 et suivantes) :"
           echo "  1. Vault init + unseal"
           echo "  2. make kubeconfig"
           echo "  3. make k8s-secrets / k8s-ccm / k8s-bootstrap-argocd"

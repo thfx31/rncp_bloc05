@@ -1,36 +1,21 @@
 // =============================================================================
-// Jenkinsfile - POC CI/CD pipeline (Phase 4 - DevSecOps)
+// Jenkinsfile - POC CI/CD pipeline
 //
-// Paramétré (VARIANT: legacy/modern) - démontre la problématique de départ
-// (CONTEXT.md) : toolchains figées par OS (Ubuntu 18.04 EOL vs 22.04) qui
-// imposaient jadis des workstations/nodes Jenkins dédiés par OS. Ici, les
-// deux tournent comme agents Kubernetes dynamiques sur le même cluster, à
-// la demande - pas besoin d'un node par OS. Le webhook GitLab déclenche
-// "legacy" par défaut ; "modern" se lance via "Build with Parameters".
+// Paramétré (VARIANT: legacy/modern/broken)
 //
 // Stages :
-//   1. Checkout          - récupère le code depuis GitLab
-//   2. Checkov scan      - lint sécurité du Dockerfile, FAIL sur finding bloquant
-//   3. Build Docker image - rebuild l'image si Dockerfile modifié
-//   4. Trivy scan        - scan de vulnérabilités, FAIL si HIGH/CRITICAL
-//   5. Syft SBOM         - inventaire des paquets de l'image (SPDX)
-//   6. Build firmware    - compilation dans le conteneur (gcc-7 legacy / gcc-12 modern)
-//   7. Cppcheck scan     - analyse statique du code C, alimente SonarQube (plugin sonar-cxx)
-//   8. SonarQube         - analyse statique + Quality Gate (cf. docs/sonarqube-cxx-plugin.md)
-//   9. Simulator         - validation ELF du binaire produit
-//  10. Push Harbor       - pousse l'image validée
-//  11. Cosign sign       - signe l'image poussée + atteste le SBOM
+//   1. Checkout              - récupère le code depuis GitLab
+//   2. Checkov scan          - lint sécurité du Dockerfile, FAIL sur finding bloquant
+//   3. Build Docker image    - rebuild l'image si Dockerfile modifié
+//   4. Trivy scan            - scan de vulnérabilités, FAIL si HIGH/CRITICAL
+//   5. Syft SBOM             - inventaire des paquets de l'image (SPDX)
+//   6. Build firmware        - compilation dans le conteneur (gcc-7 legacy / gcc-12 modern)
+//   7. Cppcheck scan         - analyse statique du code C, alimente SonarQube (plugin sonar-cxx)
+//   8. SonarQube             - analyse statique + Quality Gate
+//   9. Simulator             - validation ELF du binaire produit
+//  10. Push Harbor           - pousse l'image validée
+//  11. Cosign sign           - signe l'image poussée + atteste le SBOM
 //
-// Prérequis Jenkins (Credentials, auto-découverts via kubernetes-credentials-
-// provider - cf. docs/apps-stack.md, aucune valeur en clair ici) :
-//   - harbor-credentials  : Username/Password
-//   - gitlab-credentials  : Username/Password
-//   - sonarqube-token     : Secret text (token généré manuellement dans SonarQube)
-//   - cosign-private-key  : Secret text (contenu de cosign.key, passphrase vide)
-//
-// Prérequis Jenkins (System) :
-//   - SonarQube server nommé "sonarqube" dans Manage Jenkins > System
-//   - Variables globales HARBOR_URL / SONAR_HOST_URL (JCasC, cf. jenkins-app.yaml)
 // =============================================================================
 
 pipeline {
@@ -129,8 +114,6 @@ spec:
         IMAGE_NAME      = "${params.VARIANT == 'modern' ? 'build-modern-ubuntu22' : (params.VARIANT == 'broken' ? 'build-broken-demo' : 'build-legacy-ubuntu18')}"
         FULL_IMAGE      = "${HARBOR_URL}/${HARBOR_PROJECT}/${IMAGE_NAME}"
 
-        // Dockerfile.legacy / Dockerfile.modern - le nom du paramètre matche
-        // directement le suffixe du fichier.
         DOCKERFILE_PATH = "docker/Dockerfile.${params.VARIANT}"
         BUILD_OUTPUT    = "build/firmware.elf"
 
@@ -148,7 +131,6 @@ spec:
         stage("Checkout") {
             steps {
                 container("builder") {
-                    // Fix git safe.directory pour éviter "dubious ownership"
                     sh "git config --global --add safe.directory '*'"
                     checkout scm
                     script {
@@ -171,9 +153,6 @@ spec:
             steps {
                 container("checkov") {
                     script {
-                        // Lint sécurité du Dockerfile lui-même (pas de l'image buildée,
-                        // c'est le rôle de Trivy plus loin) - mauvaises pratiques
-                        // d'écriture (USER root implicite, secrets en ARG, etc.)
                         def checkovResult = sh(
                             script: """
                                 checkov --compact \
@@ -263,10 +242,6 @@ spec:
             steps {
                 container("trivy") {
                     script {
-                        // Rapport JSON toujours généré (succès ou échec) - exit-code 0
-                        // ici, la décision fail/pass est prise par le 2e appel juste
-                        // après (même scan, DB de vulnérabilités déjà en cache donc
-                        // quasi instantané).
                         sh """
                             trivy image \
                                 --exit-code 0 \
@@ -306,14 +281,9 @@ spec:
             steps {
                 container("builder") {
                     script {
-                        // Installé à la volée dans le conteneur builder (docker-cli,
-                        // Alpine) - plus simple que de spawn un container syft séparé
-                        // via "docker run" (qui ne partagerait pas le réseau du pod
-                        // pour joindre le daemon DinD en localhost:2375).
+                        // Installé à la volée dans le conteneur builder (docker-cli, Alpine)
                         sh "wget -qO- https://raw.githubusercontent.com/anchore/syft/main/install.sh | sh -s -- -b /usr/local/bin"
-                        // "docker:" force la lecture depuis le daemon DinD (image pas
-                        // encore poussée sur Harbor à ce stade du pipeline) - syft lit
-                        // DOCKER_HOST comme le ferait le CLI docker.
+
                         sh """
                             syft docker:${env.FULL_IMAGE_LATEST} \
                                 -o spdx-json=sbom.json
@@ -374,11 +344,7 @@ spec:
                                 -Dsonar.qualitygate.wait=true
                         """
                     }
-                    // Pas d'artefact local : le "rapport" est le dashboard SonarQube
-                    // lui-même (résultats poussés directement sur le serveur).
-                    // Le plugin Community C/C++ (sonar-cxx) et le profil qualité/Quality
-                    // Gate associés sont installés/configurés à la main sur le serveur -
-                    // cf. docs/sonarqube-cxx-plugin.md (pas géré par le Helm chart).
+
                     echo "Rapport SonarQube : ${SONAR_HOST_URL}/dashboard?id=${SONAR_PROJECT_KEY}"
                 }
             }
@@ -422,9 +388,7 @@ spec:
             steps {
                 container("builder") {
                     script {
-                        // Cosign ne parle qu'au registre (Harbor), pas au daemon Docker
-                        // - pas besoin d'un conteneur dédié avec DOCKER_HOST, juste le
-                        // binaire (statique, tourne tel quel sur Alpine/musl).
+
                         sh "wget -qO /usr/local/bin/cosign https://github.com/sigstore/cosign/releases/latest/download/cosign-linux-amd64 && chmod +x /usr/local/bin/cosign"
                     }
                     withCredentials([

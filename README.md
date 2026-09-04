@@ -80,8 +80,7 @@ rncp_bloc05/
 ## Démarrage rapide
 
 - **Mise en place / reconstruction** (première fois ou après un destroy) :
-  [`docs/setup.md`](docs/setup.md) - mode opératoire
-  linéaire à redérouler tel quel.
+  [`docs/setup.md`](docs/setup.md)
 - `make help` liste toutes les commandes disponibles.
 
 ## Documentation

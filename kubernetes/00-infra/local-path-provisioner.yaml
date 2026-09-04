@@ -1,10 +1,3 @@
-# Vendoré depuis https://github.com/rancher/local-path-provisioner
-# deploy/local-path-storage.yaml, tag v0.0.36 (image déjà pinnée par upstream).
-# Vérifier avant rebuild : https://github.com/rancher/local-path-provisioner/releases
-#
-# RKE2 ne bundle PAS ce provisioner par défaut dans cette configuration
-# (contrairement à ce que supposait CONTEXT.md) - sans lui, aucune app avec
-# PVC (Harbor, GitLab, SonarQube, Jenkins, Phase 3) ne peut démarrer.
 ---
 apiVersion: v1
 kind: Namespace

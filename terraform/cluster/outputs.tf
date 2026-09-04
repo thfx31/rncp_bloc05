@@ -1,5 +1,3 @@
-# Outputs utilisés par ansible/inventory.py
-
 output "control_plane_ip_public" {
   description = "IP publique du control plane RKE2"
   value       = scaleway_instance_ip.nodes["cp"].address

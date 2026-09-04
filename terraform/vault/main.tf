@@ -1,6 +1,3 @@
-# ── Réseau privé du cluster (créé par terraform/cluster/) ─
-# Récupéré par nom, pas par remote state : Vault et le cluster ont des cycles
-# de vie et des états Terraform indépendants (cf. docs/poc-vs-prod.md).
 data "scaleway_vpc_private_network" "cluster" {
   name = "${var.cluster_name}-private"
 }
@@ -21,8 +18,6 @@ resource "scaleway_instance_server" "vault" {
     volume_type = "sbs_volume"
   }
 
-  # Attachée au même réseau privé que le cluster : jointe pour l'auth K8s
-  # (Jenkins -> Vault) sans exposer Vault publiquement au-delà de SSH/API admin.
   private_network {
     pn_id = data.scaleway_vpc_private_network.cluster.id
   }

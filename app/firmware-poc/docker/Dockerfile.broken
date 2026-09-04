@@ -1,17 +1,10 @@
 # =============================================================================
 # build-broken-demo
 #
-# Variante intentionnellement NON conforme - sert uniquement de fixture de
-# démonstration pour le stage "Checkov scan" du Jenkinsfile (preuve que le
-# pipeline bloque bien avant tout build/push en cas de mauvaise pratique).
-#
-# Base identique à Dockerfile.legacy, moins les 2 corrections apportées par
-# les commits fd09587/2e4f14e ("fix 2 findings Checkov") :
+# Variante intentionnellement NON conforme
 #   - CKV_DOCKER_2 : pas de HEALTHCHECK
 #   - CKV_DOCKER_3 : pas d'utilisateur non-root (tourne en root par défaut)
 #
-# Ne jamais "corriger" ce fichier - c'est le but recherché. Si Checkov ne
-# le bloque plus, vérifier que ces 2 règles sont toujours actives.
 # =============================================================================
 
 FROM ubuntu:18.04
