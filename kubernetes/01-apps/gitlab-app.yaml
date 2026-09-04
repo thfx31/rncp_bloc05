@@ -12,7 +12,7 @@ spec:
   source:
     repoURL: https://charts.gitlab.io/
     chart: gitlab
-    targetRevision: "9.11.7"
+    targetRevision: "9.11.12" # GitLab 18.11.11 - patch critique (CVE), cf. bannière admin GitLab
     helm:
       values: |
         global:
